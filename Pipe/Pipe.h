@@ -2,7 +2,7 @@
 
 #include <win32/Win32Utils.h>
 #include <vector>
-#include <functional>
+#include <thread>
 
 #define S_SHUTDOWN S_FALSE
 
@@ -48,4 +48,5 @@ protected:
 	IO m_sendIO;		// IO structure used when send
 	bool m_isConnected;
 	DataHeader m_dataHeader;
+	std::thread m_thread;
 };

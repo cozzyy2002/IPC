@@ -2,8 +2,6 @@
 #include "Pipe.h"
 #include <win32/Enum.h>
 
-#include <thread>
-
 static log4cplus::Logger logger = log4cplus::Logger::getInstance(LOG4CPLUS_TEXT("Pipe.Pipe"));
 
 /*static*/ const LPCTSTR CPipe::m_pipeName = _T("\\\\.\\pipe\\CPipe.MasterPipe");
@@ -48,7 +46,10 @@ ENUM(WaitResult, Received, Sent, Shutdown);
 
 HRESULT CPipe::setup()
 {
-	std::thread th([this]() -> HRESULT
+	m_shutdownEvent.reset(CreateEvent(NULL, TRUE, FALSE, NULL));
+	WIN32_ASSERT(m_shutdownEvent.isValid());
+
+	m_thread = std::thread([this]() -> HRESULT
 	{
 		HRESULT hr = S_OK;
 		while (hr == S_OK) {

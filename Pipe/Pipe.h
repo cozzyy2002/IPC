@@ -14,6 +14,8 @@ public:
 	CPipe();
 	virtual ~CPipe();
 
+	HRESULT shutdown();
+
 	HRESULT send(const Data& data) { return send(data.data(), data.size()); }
 	HRESULT send(const BYTE* data, size_t size);
 
@@ -38,7 +40,6 @@ protected:
 	};
 
 	HRESULT setup();
-	HRESULT shutdown();
 	HRESULT receiveData();
 
 	static const LPCTSTR m_pipeName;

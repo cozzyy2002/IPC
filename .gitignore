@@ -243,5 +243,5 @@ ModelManifest.xml
 
 # FAKE - F# Make
 .fake/
-/PipeUnitTest/log4cplus.BAK
-/PipeUnitTest/log4cplus.properties
+log4cplus.BAK
+log4cplus.properties

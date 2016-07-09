@@ -19,16 +19,28 @@ int main(int argc, TCHAR* argv[])
 
 using namespace testing;
 
-TEST(Pipe, normal)
+class PipeTest : public Test {
+public:
+	std::unique_ptr<CPipeServer> server;
+	std::unique_ptr<CPipeClient> client;
+
+	void SetUp() {}
+	void TearDown() {
+		EXPECT_HRESULT_SUCCEEDED(client->shutdown());
+		EXPECT_HRESULT_SUCCEEDED(server->shutdown());
+	}
+};
+
+TEST_F(PipeTest, normal)
 {
 	CPipeServer* _server;
 	ASSERT_HRESULT_SUCCEEDED(CPipeServer::createInstance(&_server));
-	std::unique_ptr<CPipeServer> server(_server);	CPipeClient* _client;
+	server.reset(_server);
+	CPipeClient* _client;
 	ASSERT_HRESULT_SUCCEEDED(CPipeClient::createInstance(&_client));
-	std::unique_ptr<CPipeClient> client;
 	client.reset(_client);
 
-	Sleep(5000);
+	Sleep(100);
 	ASSERT_TRUE(server->isConnected());
 	ASSERT_TRUE(client->isConnected());
 
@@ -40,8 +52,8 @@ TEST(Pipe, normal)
 		return S_OK;
 	};
 
-	EXPECT_HRESULT_SUCCEEDED(client->send(dataToSend));
-	Sleep(5000);
+	ASSERT_HRESULT_SUCCEEDED(client->send(dataToSend));
+	Sleep(100);
 
 	EXPECT_EQ(dataToSend, receivedData);
 }

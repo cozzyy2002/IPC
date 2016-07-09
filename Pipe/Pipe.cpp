@@ -6,6 +6,8 @@
 
 static log4cplus::Logger logger = log4cplus::Logger::getInstance(LOG4CPLUS_TEXT("Pipe.Pipe"));
 
+/*static*/ const LPCTSTR CPipe::m_pipeName = _T("\\\\.\\pipe\\CPipe.MasterPipe");
+
 CPipe::CPipe()
 	: m_isConnected(false)
 {

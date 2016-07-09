@@ -14,7 +14,7 @@ public:
 	CPipe();
 	virtual ~CPipe();
 
-	HRESULT send(const Data& data) { send(data.data(), data.size()); }
+	HRESULT send(const Data& data) { return send(data.data(), data.size()); }
 	HRESULT send(const BYTE* data, size_t size);
 
 	inline bool isConnected() const { return m_isConnected; }

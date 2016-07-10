@@ -51,6 +51,9 @@ HRESULT CPipe::setup()
 
 	m_thread = std::thread([this]() -> HRESULT
 	{
+		// m_isConnected should be false when this thread terminates.
+		CSafeValue<bool, false> isConnected(&m_isConnected);
+
 		LPCSTR className = typeid(*this).name();
 
 		HRESULT hr = S_OK;
@@ -96,7 +99,7 @@ HRESULT CPipe::setup()
 			}
 			WIN32_ASSERT(ResetEvent(hEvents[wait]));
 		}
-		m_isConnected = false;
+
 		return hr;
 	});
 

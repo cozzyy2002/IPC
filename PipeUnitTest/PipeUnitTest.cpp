@@ -28,6 +28,8 @@ public:
 	void TearDown() {
 		EXPECT_HRESULT_SUCCEEDED(client->shutdown());
 		EXPECT_HRESULT_SUCCEEDED(server->shutdown());
+		EXPECT_FALSE(client->isConnected());
+		EXPECT_FALSE(server->isConnected());
 	}
 };
 

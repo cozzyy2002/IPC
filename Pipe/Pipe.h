@@ -14,6 +14,11 @@ public:
 	CPipe();
 	virtual ~CPipe();
 
+	template<class T>
+	static HRESULT createInstance(std::unique_ptr<T>& ptr);
+	template<class T>
+	static HRESULT createInstance(T** pp);
+
 	HRESULT shutdown();
 
 	HRESULT send(const Data& data) { return send(data.data(), data.size()); }
@@ -51,3 +56,27 @@ protected:
 	DataHeader m_dataHeader;
 	std::thread m_thread;
 };
+
+template<class T>
+inline HRESULT CPipe::createInstance(std::unique_ptr<T>& ptr)
+{
+	ptr.reset(new(std::nothrow) T());
+	HR_ASSERT(ptr, E_OUTOFMEMORY);
+
+	HRESULT hr = ptr->setup();
+	if (FAILED(hr)) {
+		ptr.reset();
+	}
+	return hr;
+}
+
+template<class T>
+inline HRESULT CPipe::createInstance(T ** pp)
+{
+	HR_ASSERT(pp, E_POINTER);
+
+	std::unique_ptr<T> ptr;
+	HRESULT hr = createInstance(ptr);
+	*pp = ptr.release();
+	return hr;
+}

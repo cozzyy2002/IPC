@@ -35,12 +35,8 @@ public:
 
 TEST_F(PipeTest, normal)
 {
-	CPipeServer* _server;
-	ASSERT_HRESULT_SUCCEEDED(CPipeServer::createInstance(&_server));
-	server.reset(_server);
-	CPipeClient* _client;
-	ASSERT_HRESULT_SUCCEEDED(CPipeClient::createInstance(&_client));
-	client.reset(_client);
+	ASSERT_HRESULT_SUCCEEDED(CPipe::createInstance(server));
+	ASSERT_HRESULT_SUCCEEDED(CPipe::createInstance(client));
 
 	Sleep(100);
 	ASSERT_TRUE(server->isConnected());

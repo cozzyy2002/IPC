@@ -1,12 +1,11 @@
 #pragma once
 #include "Pipe.h"
-class CPipeClient :
-	public CPipe
+class CPipeClient : public CPipe
 {
+	friend class CPipe;
+
 public:
 	~CPipeClient();
-
-	static HRESULT createInstance(CPipeClient** ppInstance);
 
 protected:
 	CPipeClient();

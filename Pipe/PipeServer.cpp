@@ -31,21 +31,3 @@ HRESULT CPipeServer::setup()
 CPipeServer::~CPipeServer()
 {
 }
-
-HRESULT CPipeServer::createInstance(CPipeServer ** ppInstance)
-{
-	HR_ASSERT(ppInstance, E_POINTER);
-	*ppInstance = NULL;
-
-	CPipeServer* pThis = new(std::nothrow) CPipeServer();
-	HR_ASSERT(pThis, E_OUTOFMEMORY);
-
-	HRESULT hr = pThis->setup();
-	if (SUCCEEDED(hr)) {
-		// Completed to create object.
-		*ppInstance = pThis;
-	} else {
-		delete pThis;
-	}
-	return hr;
-}

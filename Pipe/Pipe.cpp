@@ -46,9 +46,6 @@ ENUM(WaitResult, Received, Sent, Shutdown);
 
 HRESULT CPipe::setup()
 {
-	m_shutdownEvent.reset(CreateEvent(NULL, TRUE, FALSE, NULL));
-	WIN32_ASSERT(m_shutdownEvent.isValid());
-
 	m_thread = std::thread([this]() -> HRESULT
 	{
 		// m_isConnected should be false when this thread terminates.
@@ -147,9 +144,6 @@ HRESULT CPipe::receiveData()
 
 CPipe::IO::IO()
 {
-	hEvent.reset(::CreateEvent(NULL, TRUE, FALSE, NULL));
-	WIN32_EXPECT(hEvent.isValid());
-
 	ZeroMemory(&ov, sizeof(ov));
 	ov.hEvent = hEvent;
 }

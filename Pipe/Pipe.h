@@ -40,7 +40,7 @@ protected:
 
 	protected:
 		OVERLAPPED ov;
-		CSafeHandle hEvent;
+		CSafeEventHandle hEvent;
 	};
 
 	// Header of data to send or to be received.
@@ -53,7 +53,7 @@ protected:
 
 	static const LPCTSTR m_pipeName;
 	CSafeHandle m_pipe;
-	CSafeHandle m_shutdownEvent;
+	CSafeEventHandle m_shutdownEvent;
 	IO m_receiveIO;		// IO structure used when connect and receive;
 	IO m_sendIO;		// IO structure used when send
 	bool m_isConnected;

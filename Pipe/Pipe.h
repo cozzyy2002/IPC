@@ -35,6 +35,10 @@ protected:
 	struct IO {
 		IO();
 
+		OVERLAPPED* operator&() { return &ov; }
+		operator HANDLE() { return ov.hEvent; }
+
+	protected:
 		OVERLAPPED ov;
 		CSafeHandle hEvent;
 	};

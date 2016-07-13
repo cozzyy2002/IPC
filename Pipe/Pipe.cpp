@@ -23,13 +23,13 @@ HRESULT CPipe::send(const BYTE * data, size_t size)
 	// Send header
 	IO headerIO;
 	DataHeader header = { size };
-	WriteFile(m_pipe, &header, sizeof(header), NULL, &headerIO.ov);
-	HANDLE hEvents[] = { headerIO.hEvent, m_shutdownEvent };
+	WriteFile(m_pipe, &header, sizeof(header), NULL, &headerIO);
+	HANDLE hEvents[] = { headerIO, m_shutdownEvent };
 	DWORD wait = WaitForMultipleObjects(ARRAYSIZE(hEvents), hEvents, FALSE, INFINITE);
 	switch (wait) {
 	case 0:
 		// Send data
-		WriteFile(m_pipe, data, size, NULL, &m_sendIO.ov);
+		WriteFile(m_pipe, data, size, NULL, &m_sendIO);
 		break;
 	case 1:
 		return S_SHUTDOWN;
@@ -59,13 +59,13 @@ HRESULT CPipe::setup()
 		HRESULT hr = S_OK;
 
 		if(m_isConnected) {
-			WIN32_ASSERT(SetEvent(m_receiveIO.hEvent));
+			WIN32_ASSERT(SetEvent(m_receiveIO));
 			m_isConnected = false;
 		}
 
 		while (hr == S_OK) {
 			// WaitResult                         Received            Sent             Shutdown
-			HANDLE hEvents[WaitResult::COUNT] = { m_receiveIO.hEvent, m_sendIO.hEvent, m_shutdownEvent };
+			HANDLE hEvents[WaitResult::COUNT] = { m_receiveIO, m_sendIO, m_shutdownEvent };
 			WaitResult wait((WaitResult::Values)WaitForMultipleObjects(ARRAYSIZE(hEvents), hEvents, FALSE, INFINITE));
 			LOG4CPLUS_DEBUG(logger, className << ": Event set: " << wait.toString() << ":" << (int)wait);
 
@@ -82,7 +82,7 @@ HRESULT CPipe::setup()
 					// Recived data.
 					hr = HR_EXPECT_OK(receiveData());
 				}
-				ReadFile(m_pipe, &m_dataHeader, sizeof(m_dataHeader), NULL, &m_receiveIO.ov);
+				ReadFile(m_pipe, &m_dataHeader, sizeof(m_dataHeader), NULL, &m_receiveIO);
 				break;
 			case wait.Sent:			// Complete to send data.
 				if (onCompletedToSend) {
@@ -121,13 +121,13 @@ HRESULT CPipe::shutdown()
 HRESULT CPipe::receiveData()
 {
 	DWORD numberOfBytesTransferred = 0;
-	GetOverlappedResult(m_pipe, &m_receiveIO.ov, &numberOfBytesTransferred, FALSE);
+	GetOverlappedResult(m_pipe, &m_receiveIO, &numberOfBytesTransferred, FALSE);
 	WIN32_ASSERT(sizeof(m_dataHeader) != numberOfBytesTransferred);
 
 	Data data;
 	data.resize(m_dataHeader.size);
-	ReadFile(m_pipe, data.data(), m_dataHeader.size, NULL, &m_receiveIO.ov);
-	HANDLE hEvents[] = { m_receiveIO.hEvent, m_shutdownEvent };
+	ReadFile(m_pipe, data.data(), m_dataHeader.size, NULL, &m_receiveIO);
+	HANDLE hEvents[] = { m_receiveIO, m_shutdownEvent };
 	DWORD wait = WaitForMultipleObjects(ARRAYSIZE(hEvents), hEvents, FALSE, INFINITE);
 	switch (wait) {
 	case 0:

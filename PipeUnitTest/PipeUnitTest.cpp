@@ -38,7 +38,15 @@ TEST_F(PipeTest, normal)
 	ASSERT_HRESULT_SUCCEEDED(CPipe::createInstance(server));
 	ASSERT_HRESULT_SUCCEEDED(CPipe::createInstance(client));
 
-	Sleep(100);
+	// NOTE: When server connects, client does not connect yet.
+	CSafeEventHandle  hEvent(FALSE);
+	client->onConnected = [&]()
+	{
+		SetEvent(hEvent);
+		return S_OK;
+	};
+	WIN32_EXPECT(WAIT_OBJECT_0 == WaitForSingleObject(hEvent, 1000));
+
 	ASSERT_TRUE(server->isConnected());
 	ASSERT_TRUE(client->isConnected());
 
@@ -47,11 +55,12 @@ TEST_F(PipeTest, normal)
 	server->onReceived = [&](const CPipe::Data& data)
 	{
 		receivedData = data;
+		SetEvent(hEvent);
 		return S_OK;
 	};
 
 	ASSERT_HRESULT_SUCCEEDED(client->send(dataToSend));
-	Sleep(100);
+	WIN32_EXPECT(WAIT_OBJECT_0 == WaitForSingleObject(hEvent, 1000));
 
 	EXPECT_EQ(dataToSend, receivedData);
 }

@@ -132,6 +132,7 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Buffer.h" />
     <ClInclude Include="Pipe.h" />
     <ClInclude Include="PipeClient.h" />
     <ClInclude Include="PipeServer.h" />
@@ -139,6 +140,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Buffer.cpp" />
     <ClCompile Include="Pipe.cpp" />
     <ClCompile Include="PipeClient.cpp" />
     <ClCompile Include="PipeServer.cpp" />

@@ -148,39 +148,3 @@ CPipe::IO::IO()
 	ZeroMemory(&ov, sizeof(ov));
 	ov.hEvent = hEvent;
 }
-
-struct BufferHeader {
-	DWORD userDataSize;
-};
-
-class CBuffer : public CPipe::IBuffer, public CUnknownImpl {
-public:
-	using buffer_t = std::unique_ptr<BYTE[]>;
-
-	CBuffer(DWORD size, buffer_t& buffer)
-		: m_size(size) { m_buffer = std::move(buffer); }
-
-	virtual HRESULT GetSie(DWORD* pSize) { return S_OK; }
-	virtual HRESULT GetBuffer(BYTE** ppBuffer) { return S_OK; }
-
-	IUNKNOWN_METHODS;
-
-protected:
-	DWORD m_size;
-	buffer_t m_buffer;
-};
-
-HRESULT CPipe::IBuffer::createInstance(DWORD size, IBuffer** ppInstance)
-{
-	HR_ASSERT(ppInstance, E_POINTER);
-	*ppInstance = NULL;
-
-	CBuffer::buffer_t buffer(new(std::nothrow) CBuffer::buffer_t::element_type[size]);
-	HR_ASSERT(buffer, E_OUTOFMEMORY);
-
-	CComPtr<CBuffer> instance(new(std::nothrow) CBuffer(size, buffer));
-	HR_ASSERT(instance, E_OUTOFMEMORY);
-
-	*ppInstance = instance.Detach();
-	return S_OK;
-}

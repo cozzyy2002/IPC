@@ -20,11 +20,13 @@ HRESULT CPipeServer::setup()
 	DWORD nDefaultTimOout = 1000;
 	m_pipe.reset(::CreateNamedPipe(m_pipeName, dwOpenMode, dwPipeMode, nMaxInstanes, nOutBufferSize, nInBufferSize, nDefaultTimOout, NULL));
 	WIN32_ASSERT(m_pipe.isValid());
-	HR_ASSERT(!ConnectNamedPipe(m_pipe, &m_receiveIO), E_ABORT);	// ConnetNamedPipe() should return FALSE.
+	HR_ASSERT(!ConnectNamedPipe(m_pipe, &m_connectIO), E_ABORT);	// ConnetNamedPipe() should return FALSE.
 	DWORD error = GetLastError();
 	HR_ASSERT(error == ERROR_IO_PENDING, HRESULT_FROM_WIN32(error));
 
-	return CPipe::setup();
+	// Server is waiting for client to connect.
+	bool isConnected = false;
+	return CPipe::setup(isConnected);
 }
 
 

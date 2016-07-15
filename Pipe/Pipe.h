@@ -11,6 +11,14 @@ class CPipe
 public:
 	typedef std::vector<BYTE> Data;
 
+	class IBuffer : public IUnknown {
+	public:
+		virtual HRESULT GetSie(DWORD* pSize) PURE;
+		virtual HRESULT GetBuffer(BYTE** pBuffer) PURE;
+
+		static HRESULT createInstance(DWORD size, IBuffer** ppInstance);
+	};
+
 	CPipe();
 	virtual ~CPipe();
 
@@ -27,8 +35,8 @@ public:
 	inline bool isConnected() const { return m_isConnected; }
 
 	std::function <HRESULT()> onConnected;
-	std::function <HRESULT(const Data& data)> onReceived;
 	std::function <HRESULT()> onCompletedToSend;
+	std::function <HRESULT(const Data& data)> onReceived;
 
 protected:
 	// Structure used by overlapped IO
@@ -48,14 +56,15 @@ protected:
 		DWORD size;			// Byte size of following data.
 	};
 
-	HRESULT setup();
+	HRESULT setup(bool isConnected);
 	HRESULT receiveData();
 
 	static const LPCTSTR m_pipeName;
 	CSafeHandle m_pipe;
 	CSafeEventHandle m_shutdownEvent;
-	IO m_receiveIO;		// IO structure used when connect and receive;
-	IO m_sendIO;		// IO structure used when send
+	IO m_connectIO;		// IO structure used when connect
+	IO m_receiveIO;		// IO structure used when receive data
+	IO m_sendIO;		// IO structure used when complete to send data
 	bool m_isConnected;
 	DataHeader m_dataHeader;
 	std::thread m_thread;

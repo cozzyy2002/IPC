@@ -13,3 +13,5 @@
 
 // TODO: プログラムに必要な追加ヘッダーをここで参照してください
 #include <win32/stdafx.h>
+#include <atlbase.h>
+#include <atlcom.h>

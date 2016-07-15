@@ -16,6 +16,7 @@ HRESULT CPipeClient::setup()
 	m_pipe.reset(CreateFile(m_pipeName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL));
 	WIN32_ASSERT(m_pipe.isValid());
 
-	m_isConnected = true;
-	return CPipe::setup();
+	// At this point, pipe is connected to server.
+	bool isConnected = true;
+	return CPipe::setup(isConnected);
 }

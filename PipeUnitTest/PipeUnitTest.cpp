@@ -21,6 +21,8 @@ using namespace testing;
 
 class PipeTest : public Test {
 public:
+	typedef std::vector<BYTE> data_t;
+
 	std::unique_ptr<CPipeServer> server;
 	std::unique_ptr<CPipeClient> client;
 
@@ -57,11 +59,15 @@ TEST_F(PipeTest, normal)
 	ASSERT_TRUE(server->isConnected());
 	ASSERT_TRUE(client->isConnected());
 
-	CPipe::Data dataToSend{ 1, 2, 3, 0, 5 };
-	CPipe::Data receivedData;
-	server->onReceived = [&](const CPipe::Data& data)
+	data_t dataToSend{ 1, 2, 3, 0, 5 };
+	data_t receivedData;
+	server->onReceived = [&](CPipe::IBuffer* buffer)
 	{
-		receivedData = data;
+		BYTE* data;
+		buffer->GetBuffer(&data);
+		DWORD size;
+		buffer->GetSie(&size);
+		receivedData = std::vector<BYTE>(data, data + size);
 		SetEvent(hServerEvent);
 		return S_OK;
 	};

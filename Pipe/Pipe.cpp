@@ -37,12 +37,6 @@ HRESULT CPipe::send(IBuffer* iBuffer)
 	return hr;
 }
 
-HRESULT CPipe::write(IBuffer* iBuffer)
-{
-	CBuffer* buffer = CBuffer::getImpl(iBuffer);
-	return WIN32_EXPECT(WriteFile(m_pipe, buffer->getHeader(), buffer->getTotalSize(), NULL, &m_sendIO));
-}
-
 // Index of events used as object to be waited in worker thread.
 ENUM(WaitResult, Connected, Received, Sent, Shutdown);
 
@@ -67,11 +61,17 @@ HRESULT CPipe::mainThread(bool isConnected)
 		WIN32_ASSERT(SetEvent(m_connectIO));
 	}
 
+	BufferHeader readHeader = { 0 };
+	CComPtr<IBuffer> readBuffer;
+
 	while (hr == S_OK) {
 		// WaitResult                         Connected    Received     Sent      Shutdown
 		HANDLE hEvents[WaitResult::COUNT] = { m_connectIO, m_receiveIO, m_sendIO, m_shutdownEvent };
 		WaitResult wait((WaitResult::Values)WaitForMultipleObjects(ARRAYSIZE(hEvents), hEvents, FALSE, INFINITE));
 		LOG4CPLUS_DEBUG(logger, className << ": Event set: " << wait.toString() << ":" << (int)wait);
+		if (wait.isValid()) {
+			WIN32_ASSERT(ResetEvent(hEvents[wait]));
+		}
 
 		switch (wait) {
 		case wait.Connected:	// Connected
@@ -80,11 +80,37 @@ HRESULT CPipe::mainThread(bool isConnected)
 			if (onConnected) {
 				HR_ASSERT_OK(onConnected());
 			}
-			ReadFile(m_pipe, &m_dataHeader, sizeof(m_dataHeader), NULL, &m_receiveIO);
+
+			// Prepare to receive header
+			HR_ASSERT_OK(read(&readHeader, sizeof(readHeader)));
 			break;
-		case wait.Received:		// received data.
-			hr = HR_EXPECT_OK(receiveData());
-			ReadFile(m_pipe, &m_dataHeader, sizeof(m_dataHeader), NULL, &m_receiveIO);
+		case wait.Received:		// Received header or user data.
+			{
+				DWORD numberOfBytesTransferred = 0;
+				WIN32_ASSERT(GetOverlappedResult(m_pipe, &m_receiveIO, &numberOfBytesTransferred, FALSE));
+				LOG4CPLUS_DEBUG(logger, "Received " << numberOfBytesTransferred << "byte");
+				if(!readBuffer) {
+					// Received buffer header.
+					HR_ASSERT(sizeof(readHeader) == numberOfBytesTransferred, E_UNEXPECTED);
+
+					// Prepare to receive user data.
+					HR_ASSERT_OK(IBuffer::createInstance(readHeader.userDataSize, &readBuffer));
+					CBuffer* p = CBuffer::getImpl(readBuffer);
+					HR_ASSERT_OK(read(p->getBuffer(), p->getSize()));
+				} else {
+					// Receied user data.
+					CBuffer* p = CBuffer::getImpl(readBuffer);
+					HR_ASSERT(p->getSize() == numberOfBytesTransferred, E_UNEXPECTED);
+
+					if (onReceived) {
+						HR_ASSERT_OK(onReceived(readBuffer));
+					}
+
+					// Prepare to receive next header
+					readBuffer.Release();
+					HR_ASSERT_OK(read(&readHeader, sizeof(readHeader)));
+				}
+			}
 			break;
 		case wait.Sent:			// Complete to send data.
 			{
@@ -98,7 +124,7 @@ HRESULT CPipe::mainThread(bool isConnected)
 
 				// Remove current buffer and send next buffer if exist.
 				m_buffersToSend.pop_front();
-				if (0 != m_buffersToSend.size()) {
+				if (0 < m_buffersToSend.size()) {
 					HR_ASSERT_OK(write(m_buffersToSend.front()));
 				}
 			}
@@ -110,9 +136,6 @@ HRESULT CPipe::mainThread(bool isConnected)
 			// Always fails.
 			WIN32_ASSERT(wait < ARRAYSIZE(hEvents));
 			break;
-		}
-		if (wait.isValid()) {
-			WIN32_ASSERT(ResetEvent(hEvents[wait]));
 		}
 	}
 
@@ -131,31 +154,28 @@ HRESULT CPipe::shutdown()
 	return hr;
 }
 
-HRESULT CPipe::receiveData()
+HRESULT checkPending(BOOL ret)
 {
-	DWORD numberOfBytesTransferred = 0;
-	GetOverlappedResult(m_pipe, &m_receiveIO, &numberOfBytesTransferred, FALSE);
-	WIN32_ASSERT(sizeof(m_dataHeader) != numberOfBytesTransferred);
+	HRESULT hr = S_OK;
 
-	Data data;
-	data.resize(m_dataHeader.size);
-	ReadFile(m_pipe, data.data(), m_dataHeader.size, NULL, &m_receiveIO);
-	HANDLE hEvents[] = { m_receiveIO, m_shutdownEvent };
-	DWORD wait = WaitForMultipleObjects(ARRAYSIZE(hEvents), hEvents, FALSE, INFINITE);
-	switch (wait) {
-	case 0:
-		if (onReceived) {
-			HR_ASSERT_OK(onReceived(data));
-		}
-		break;
-	case 1:
-		return S_SHUTDOWN;
-	default:
-		// Always fails.
-		WIN32_ASSERT(wait < ARRAYSIZE(hEvents));
-		break;
+	if (!ret) {
+		DWORD error = GetLastError();
+		hr = HR_EXPECT(error == ERROR_IO_PENDING, HRESULT_FROM_WIN32(error));
 	}
-	return S_OK;
+	return hr;
+}
+
+HRESULT CPipe::read(void* buffer, DWORD size)
+{
+	LOG4CPLUS_DEBUG(logger, "Reading " << size << " byte");
+	return checkPending(ReadFile(m_pipe, buffer, size, NULL, &m_receiveIO));
+}
+
+HRESULT CPipe::write(IBuffer* iBuffer)
+{
+	CBuffer* buffer = CBuffer::getImpl(iBuffer);
+	LOG4CPLUS_DEBUG(logger, "Writing " << buffer->getTotalSize() << " byte");
+	return checkPending(WriteFile(m_pipe, buffer->getHeader(), buffer->getTotalSize(), NULL, &m_sendIO));
 }
 
 CPipe::IO::IO()

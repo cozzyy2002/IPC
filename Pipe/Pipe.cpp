@@ -11,6 +11,9 @@ static std::mutex g_sendMutex;
 
 /*static*/ const LPCTSTR CPipe::m_pipeName = _T("\\\\.\\pipe\\CPipe.MasterPipe");
 
+// Check result of overlapped IO.
+static HRESULT checkPending(BOOL ret);
+
 CPipe::CPipe()
 	: m_isConnected(false)
 {
@@ -20,25 +23,6 @@ CPipe::CPipe()
 CPipe::~CPipe()
 {
 }
-
-HRESULT CPipe::send(IBuffer* iBuffer)
-{
-	HR_ASSERT(m_isConnected, E_ILLEGAL_METHOD_CALL);
-
-	HRESULT hr = S_OK;
-
-	std::lock_guard<std::mutex> lock(g_sendMutex);
-
-	m_buffersToSend.push_back(iBuffer);
-	if (m_buffersToSend.size() == 1) {
-		hr = write(iBuffer);
-	}
-
-	return hr;
-}
-
-// Index of events used as object to be waited in worker thread.
-ENUM(WaitResult, Connected, Received, Sent, Shutdown);
 
 HRESULT CPipe::setup(bool isConnected)
 {
@@ -63,6 +47,9 @@ HRESULT CPipe::mainThread(bool isConnected)
 
 	CBuffer::Header readHeader = { 0 };
 	CComPtr<IBuffer> readBuffer;
+
+	// Index of events used as object to be waited in worker thread.
+	ENUM(WaitResult, Connected, Received, Sent, Shutdown);
 
 	while (hr == S_OK) {
 		// WaitResult                         Connected    Received     Sent      Shutdown
@@ -154,14 +141,19 @@ HRESULT CPipe::shutdown()
 	return hr;
 }
 
-HRESULT checkPending(BOOL ret)
+HRESULT CPipe::send(IBuffer* iBuffer)
 {
+	HR_ASSERT(m_isConnected, E_ILLEGAL_METHOD_CALL);
+
 	HRESULT hr = S_OK;
 
-	if (!ret) {
-		DWORD error = GetLastError();
-		hr = (error == ERROR_IO_PENDING) ? S_FALSE : HRESULT_FROM_WIN32(error);
+	std::lock_guard<std::mutex> lock(g_sendMutex);
+
+	m_buffersToSend.push_back(iBuffer);
+	if (m_buffersToSend.size() == 1) {
+		hr = write(iBuffer);
 	}
+
 	return hr;
 }
 
@@ -177,6 +169,17 @@ HRESULT CPipe::write(IBuffer* iBuffer)
 	CBuffer* buffer = CBuffer::getImpl(iBuffer);
 	HRESULT hr = checkPending(WriteFile(m_pipe, buffer->header, buffer->header->totalSize, NULL, &m_sendIO));
 	LOG4CPLUS_DEBUG(logger, "Writing " << buffer->header->totalSize << " byte. " << (hr == S_OK ? "Done." : "Pending."));
+	return hr;
+}
+
+HRESULT checkPending(BOOL ret)
+{
+	HRESULT hr = S_OK;
+
+	if (!ret) {
+		DWORD error = GetLastError();
+		hr = (error == ERROR_IO_PENDING) ? S_FALSE : HRESULT_FROM_WIN32(error);
+	}
 	return hr;
 }
 

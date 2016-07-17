@@ -56,14 +56,12 @@ HRESULT CPipe::mainThread(bool isConnected)
 		HANDLE hEvents[WaitResult::COUNT] = { m_connectIO, m_receiveIO, m_sendIO, m_shutdownEvent };
 		WaitResult wait((WaitResult::Values)WaitForMultipleObjects(ARRAYSIZE(hEvents), hEvents, FALSE, INFINITE));
 		LOG4CPLUS_DEBUG(logger, className << ": Event set: " << wait.toString() << ":" << (int)wait);
-		if (wait.isValid()) {
-			WIN32_ASSERT(ResetEvent(hEvents[wait]));
-		}
 
 		switch (wait) {
 		case wait.Connected:	// Connected
 			LOG4CPLUS_INFO(logger, className << ": Connected.");
 			m_isConnected = true;
+			WIN32_ASSERT(ResetEvent(m_connectIO));
 			if (onConnected) {
 				HR_ASSERT_OK(onConnected());
 			}
@@ -113,6 +111,8 @@ HRESULT CPipe::mainThread(bool isConnected)
 				m_buffersToSend.pop_front();
 				if (0 < m_buffersToSend.size()) {
 					HR_ASSERT_OK(write(m_buffersToSend.front()));
+				} else {
+					WIN32_ASSERT(ResetEvent(m_sendIO));
 				}
 			}
 			break;

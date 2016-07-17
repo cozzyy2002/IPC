@@ -3,8 +3,11 @@
 #include "Buffer.h"
 #include <win32/Enum.h>
 #include <win32/ComUtils.h>
+#include <mutex>
 
 static log4cplus::Logger logger = log4cplus::Logger::getInstance(LOG4CPLUS_TEXT("Pipe.Pipe"));
+
+static std::mutex g_sendMutex;
 
 /*static*/ const LPCTSTR CPipe::m_pipeName = _T("\\\\.\\pipe\\CPipe.MasterPipe");
 
@@ -33,6 +36,9 @@ HRESULT CPipe::send(IBuffer* iBuffer)
 	HR_ASSERT(m_isConnected, E_ILLEGAL_METHOD_CALL);
 
 	HRESULT hr = S_OK;
+
+	std::lock_guard<std::mutex> lock(g_sendMutex);
+
 	m_buffersToSend.push_back(iBuffer);
 	if (m_buffersToSend.size() == 1) {
 		hr = write(iBuffer);
@@ -94,12 +100,15 @@ HRESULT CPipe::mainThread(bool isConnected)
 			if (onCompletedToSend) {
 				HR_ASSERT_OK(onCompletedToSend());
 			}
+			{
+				std::lock_guard<std::mutex> lock(g_sendMutex);
 
-			HR_ASSERT(0 <= m_buffersToSend.size(), E_UNEXPECTED);
-			m_buffersToSend.pop_front();
-			// Send next buffer if exist.
-			if (0 != m_buffersToSend.size()) {
-				HR_ASSERT_OK(write(m_buffersToSend.front()));
+				HR_ASSERT(0 <= m_buffersToSend.size(), E_UNEXPECTED);
+				m_buffersToSend.pop_front();
+				// Send next buffer if exist.
+				if (0 != m_buffersToSend.size()) {
+					HR_ASSERT_OK(write(m_buffersToSend.front()));
+				}
 			}
 			break;
 		case wait.Shutdown:		// Shutdown event

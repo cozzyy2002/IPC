@@ -160,22 +160,24 @@ HRESULT checkPending(BOOL ret)
 
 	if (!ret) {
 		DWORD error = GetLastError();
-		hr = HR_EXPECT(error == ERROR_IO_PENDING, HRESULT_FROM_WIN32(error));
+		hr = (error == ERROR_IO_PENDING) ? S_FALSE : HRESULT_FROM_WIN32(error);
 	}
 	return hr;
 }
 
 HRESULT CPipe::read(void* buffer, DWORD size)
 {
-	LOG4CPLUS_DEBUG(logger, "Reading " << size << " byte");
-	return checkPending(ReadFile(m_pipe, buffer, size, NULL, &m_receiveIO));
+	HRESULT hr = checkPending(ReadFile(m_pipe, buffer, size, NULL, &m_receiveIO));
+	LOG4CPLUS_DEBUG(logger, "Reading " << size << " byte. " << (hr == S_OK ? "Done." : "Pending."));
+	return hr;
 }
 
 HRESULT CPipe::write(IBuffer* iBuffer)
 {
 	CBuffer* buffer = CBuffer::getImpl(iBuffer);
-	LOG4CPLUS_DEBUG(logger, "Writing " << buffer->header->totalSize << " byte");
-	return checkPending(WriteFile(m_pipe, buffer->header, buffer->header->totalSize, NULL, &m_sendIO));
+	HRESULT hr = checkPending(WriteFile(m_pipe, buffer->header, buffer->header->totalSize, NULL, &m_sendIO));
+	LOG4CPLUS_DEBUG(logger, "Writing " << buffer->header->totalSize << " byte. " << (hr == S_OK ? "Done." : "Pending."));
+	return hr;
 }
 
 CPipe::IO::IO()

@@ -39,13 +39,20 @@ TEST_F(PipeTest, normal)
 	ASSERT_HRESULT_SUCCEEDED(CPipe::createInstance(client));
 
 	// NOTE: When server connects, client does not connect yet.
-	CSafeEventHandle  hEvent(FALSE);
-	client->onConnected = [&]()
+	CSafeEventHandle  hServerEvent(FALSE), hClientEvent(FALSE);
+	HANDLE hEvents[] = { hServerEvent, hClientEvent };
+
+	server->onConnected = [&]()
 	{
-		SetEvent(hEvent);
+		SetEvent(hServerEvent);
 		return S_OK;
 	};
-	WIN32_EXPECT(WAIT_OBJECT_0 == WaitForSingleObject(hEvent, 1000));
+	client->onConnected = [&]()
+	{
+		SetEvent(hClientEvent);
+		return S_OK;
+	};
+	WIN32_EXPECT(WaitForMultipleObjects(2, hEvents, TRUE, 1000));
 
 	ASSERT_TRUE(server->isConnected());
 	ASSERT_TRUE(client->isConnected());
@@ -55,12 +62,23 @@ TEST_F(PipeTest, normal)
 	server->onReceived = [&](const CPipe::Data& data)
 	{
 		receivedData = data;
-		SetEvent(hEvent);
+		SetEvent(hServerEvent);
 		return S_OK;
 	};
 
-	ASSERT_HRESULT_SUCCEEDED(client->send(dataToSend));
-	WIN32_EXPECT(WAIT_OBJECT_0 == WaitForSingleObject(hEvent, 1000));
+	CPipe::IBuffer* bufferSent = NULL;
+	client->onCompletedToSend = [&](CPipe::IBuffer* buffer)
+	{
+		bufferSent = buffer;
+		SetEvent(hClientEvent);
+		return S_OK;
+	};
+
+	CComPtr<CPipe::IBuffer> buffer;
+	ASSERT_HRESULT_SUCCEEDED(CPipe::IBuffer::createInstance(dataToSend, &buffer));
+	ASSERT_HRESULT_SUCCEEDED(client->send(buffer));
+	WIN32_EXPECT(WaitForMultipleObjects(2, hEvents, TRUE, 1000));
 
 	EXPECT_EQ(dataToSend, receivedData);
+	EXPECT_EQ(buffer, bufferSent);
 }

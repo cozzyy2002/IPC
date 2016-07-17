@@ -21,16 +21,6 @@ CPipe::~CPipe()
 {
 }
 
-HRESULT CPipe::send(const BYTE * data, size_t size)
-{
-	CComPtr<IBuffer> iBuffer;
-	HR_ASSERT_OK(IBuffer::createInstance(size, &iBuffer));
-	CBuffer* buffer = CBuffer::getImpl(iBuffer);
-	CopyMemory(buffer->getBuffer(), data, size);
-
-	return send(iBuffer);
-}
-
 HRESULT CPipe::send(IBuffer* iBuffer)
 {
 	HR_ASSERT(m_isConnected, E_ILLEGAL_METHOD_CALL);
@@ -97,15 +87,17 @@ HRESULT CPipe::mainThread(bool isConnected)
 			ReadFile(m_pipe, &m_dataHeader, sizeof(m_dataHeader), NULL, &m_receiveIO);
 			break;
 		case wait.Sent:			// Complete to send data.
-			if (onCompletedToSend) {
-				HR_ASSERT_OK(onCompletedToSend());
-			}
 			{
 				std::lock_guard<std::mutex> lock(g_sendMutex);
 
 				HR_ASSERT(0 <= m_buffersToSend.size(), E_UNEXPECTED);
+				if (onCompletedToSend) {
+					IBuffer* buffer = m_buffersToSend.front();
+					HR_ASSERT_OK(onCompletedToSend(buffer));
+				}
+
+				// Remove current buffer and send next buffer if exist.
 				m_buffersToSend.pop_front();
-				// Send next buffer if exist.
 				if (0 != m_buffersToSend.size()) {
 					HR_ASSERT_OK(write(m_buffersToSend.front()));
 				}

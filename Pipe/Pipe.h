@@ -18,6 +18,8 @@ public:
 		virtual HRESULT GetBuffer(BYTE** pBuffer) PURE;
 
 		static HRESULT createInstance(DWORD size, IBuffer** ppInstance);
+		static HRESULT createInstance(DWORD size, const BYTE* data, IBuffer** ppInstance);
+		static HRESULT createInstance(const std::vector<BYTE> data, IBuffer** ppInstance);
 	};
 
 	CPipe();
@@ -30,14 +32,12 @@ public:
 
 	HRESULT shutdown();
 
-	HRESULT send(const Data& data) { return send(data.data(), data.size()); }
-	HRESULT send(const BYTE* data, size_t size);
 	HRESULT send(IBuffer* iBuffer);
 
 	inline bool isConnected() const { return m_isConnected; }
 
 	std::function <HRESULT()> onConnected;
-	std::function <HRESULT()> onCompletedToSend;
+	std::function <HRESULT(IBuffer*)> onCompletedToSend;
 	std::function <HRESULT(const Data& data)> onReceived;
 
 protected:

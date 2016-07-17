@@ -64,7 +64,7 @@ TEST_F(PipeTest, normal)
 	server->onReceived = [&](CPipe::IBuffer* buffer)
 	{
 		BYTE* data;
-		buffer->GetBuffer(&data);
+		buffer->GetBuffer((void**)&data);
 		DWORD size;
 		buffer->GetSie(&size);
 		receivedData = std::vector<BYTE>(data, data + size);

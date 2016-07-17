@@ -61,7 +61,7 @@ HRESULT CPipe::mainThread(bool isConnected)
 		WIN32_ASSERT(SetEvent(m_connectIO));
 	}
 
-	BufferHeader readHeader = { 0 };
+	CBuffer::Header readHeader = { 0 };
 	CComPtr<IBuffer> readBuffer;
 
 	while (hr == S_OK) {
@@ -94,13 +94,13 @@ HRESULT CPipe::mainThread(bool isConnected)
 					HR_ASSERT(sizeof(readHeader) == numberOfBytesTransferred, E_UNEXPECTED);
 
 					// Prepare to receive user data.
-					HR_ASSERT_OK(IBuffer::createInstance(readHeader.userDataSize, &readBuffer));
+					HR_ASSERT_OK(IBuffer::createInstance(readHeader.dataSize, &readBuffer));
 					CBuffer* p = CBuffer::getImpl(readBuffer);
-					HR_ASSERT_OK(read(p->getBuffer(), p->getSize()));
+					HR_ASSERT_OK(read(p->data, readHeader.dataSize));
 				} else {
 					// Receied user data.
 					CBuffer* p = CBuffer::getImpl(readBuffer);
-					HR_ASSERT(p->getSize() == numberOfBytesTransferred, E_UNEXPECTED);
+					HR_ASSERT(p->header->dataSize == numberOfBytesTransferred, E_UNEXPECTED);
 
 					if (onReceived) {
 						HR_ASSERT_OK(onReceived(readBuffer));
@@ -174,8 +174,8 @@ HRESULT CPipe::read(void* buffer, DWORD size)
 HRESULT CPipe::write(IBuffer* iBuffer)
 {
 	CBuffer* buffer = CBuffer::getImpl(iBuffer);
-	LOG4CPLUS_DEBUG(logger, "Writing " << buffer->getTotalSize() << " byte");
-	return checkPending(WriteFile(m_pipe, buffer->getHeader(), buffer->getTotalSize(), NULL, &m_sendIO));
+	LOG4CPLUS_DEBUG(logger, "Writing " << buffer->header->totalSize << " byte");
+	return checkPending(WriteFile(m_pipe, buffer->header, buffer->header->totalSize, NULL, &m_sendIO));
 }
 
 CPipe::IO::IO()

@@ -15,12 +15,12 @@
 	return S_OK;
 }
 
-/*static*/ HRESULT CPipe::IBuffer::createInstance(DWORD size, const BYTE* data, IBuffer** ppInstance)
+/*static*/ HRESULT CPipe::IBuffer::createInstance(DWORD size, const void* data, IBuffer** ppInstance)
 {
 	HRESULT hr = createInstance(size, ppInstance);
 	if (SUCCEEDED(hr)) {
 		CBuffer* buffer = CBuffer::getImpl(*ppInstance);
-		CopyMemory(buffer->getBuffer(), data, size);
+		CopyMemory(buffer->data, data, size);
 	}
 	return hr;
 }
@@ -30,26 +30,34 @@
 	return createInstance(data.size(), data.data(), ppInstance);
 }
 
-CBuffer::CBuffer(DWORD size, HRESULT& hr) : m_size(size)
+/*
+	Constructor.
+	Allocate buffer whose size is sum of header and data.
+*/
+CBuffer::CBuffer(DWORD size, HRESULT& hr)
+	: header(NULL), data(NULL)
 {
-	m_totalSize = sizeof(BufferHeader) + size;
-	m_buffer.reset(new(std::nothrow) CBuffer::buffer_t::element_type[m_totalSize]);
+	DWORD totalSize = sizeof(Header) + size;
+	m_buffer.reset(new(std::nothrow) BYTE[totalSize]);
 	hr = HR_EXPECT(m_buffer, E_OUTOFMEMORY);
 	if (SUCCEEDED(hr)) {
-		getHeader()->userDataSize = size;
+		header = (Header*)m_buffer.get();
+		header->totalSize = totalSize;
+		header->dataSize = size;
+		data = &m_buffer[sizeof(Header)];
 	}
 }
 
-HRESULT CBuffer::GetSie(DWORD * pSize)
+HRESULT CBuffer::GetSie(DWORD* pSize)
 {
 	HR_ASSERT(pSize, E_POINTER);
-	*pSize = getSize();
+	*pSize = header->dataSize;
 	return S_OK;
 }
 
-HRESULT CBuffer::GetBuffer(BYTE ** ppBuffer)
+HRESULT CBuffer::GetBuffer(void** ppBuffer)
 {
 	HR_ASSERT(ppBuffer, E_POINTER);
-	*ppBuffer = getBuffer();
+	*ppBuffer = data;
 	return S_OK;
 }

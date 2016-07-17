@@ -13,10 +13,10 @@ public:
 	class IBuffer : public IUnknown {
 	public:
 		virtual HRESULT GetSie(DWORD* pSize) PURE;
-		virtual HRESULT GetBuffer(BYTE** pBuffer) PURE;
+		virtual HRESULT GetBuffer(void** pBuffer) PURE;
 
 		static HRESULT createInstance(DWORD size, IBuffer** ppInstance);
-		static HRESULT createInstance(DWORD size, const BYTE* data, IBuffer** ppInstance);
+		static HRESULT createInstance(DWORD size, const void* data, IBuffer** ppInstance);
 		static HRESULT createInstance(const std::vector<BYTE> data, IBuffer** ppInstance);
 	};
 

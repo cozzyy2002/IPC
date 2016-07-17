@@ -6,39 +6,25 @@
 	Internal buffer deinition
 */
 
-struct BufferHeader {
-	DWORD userDataSize;
-};
-
-/**
-	BYTE m_buffer[sizeof(BufferHeader) + size]
-	[0]	BufferHeader	<- getHeader()
-	:					<- sizeof(BufferHeader)
-	[N]	user data		<- getBuffer()
-	:					<- getSize()
-	[M]
-*/
 class CBuffer : public CPipe::IBuffer, public CUnknownImpl {
 public:
-	using buffer_t = std::unique_ptr<BYTE[]>;
+	struct Header {
+		DWORD totalSize;
+		DWORD dataSize;
+	};
+
+	Header* header;		// Header address = Top of allocated buffer.
+	void* data;			// Data address = Next byte of header.
 
 	CBuffer(DWORD size, HRESULT& hr);
 
 	virtual HRESULT GetSie(DWORD* pSize);
-	virtual HRESULT GetBuffer(BYTE** ppBuffer);
+	virtual HRESULT GetBuffer(void** ppBuffer);
 
 	IUNKNOWN_METHODS;
 
-	// Internal methods
-	DWORD getSize() { return m_size; }
-	DWORD getTotalSize() { return m_totalSize; }
-	BufferHeader* getHeader() { return (BufferHeader*)(m_buffer ? m_buffer.get() : NULL); }
-	BYTE* getBuffer() { return m_buffer ? m_buffer.get() + sizeof(BufferHeader) : NULL; }
-
-	static CBuffer* getImpl(IBuffer* i) { return dynamic_cast<CBuffer*>(i); }
+	static CBuffer* getImpl(IBuffer* iBuffer) { return dynamic_cast<CBuffer*>(iBuffer); }
 
 protected:
-	DWORD m_size;
-	DWORD m_totalSize;
-	buffer_t m_buffer;
+	std::unique_ptr<BYTE[]> m_buffer;
 };

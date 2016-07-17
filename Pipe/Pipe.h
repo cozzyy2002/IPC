@@ -59,6 +59,7 @@ protected:
 	};
 
 	HRESULT setup(bool isConnected);
+	HRESULT mainThread(bool isConnected);
 	HRESULT receiveData();
 	HRESULT write(IBuffer* iBuffer);
 

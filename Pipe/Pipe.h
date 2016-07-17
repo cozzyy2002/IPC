@@ -2,6 +2,7 @@
 
 #include <win32/Win32Utils.h>
 #include <vector>
+#include <deque>
 #include <thread>
 
 #define S_SHUTDOWN S_FALSE
@@ -31,6 +32,7 @@ public:
 
 	HRESULT send(const Data& data) { return send(data.data(), data.size()); }
 	HRESULT send(const BYTE* data, size_t size);
+	HRESULT send(IBuffer* iBuffer);
 
 	inline bool isConnected() const { return m_isConnected; }
 
@@ -58,6 +60,7 @@ protected:
 
 	HRESULT setup(bool isConnected);
 	HRESULT receiveData();
+	HRESULT write(IBuffer* iBuffer);
 
 	static const LPCTSTR m_pipeName;
 	CSafeHandle m_pipe;
@@ -68,6 +71,12 @@ protected:
 	bool m_isConnected;
 	DataHeader m_dataHeader;
 	std::thread m_thread;
+
+	/**
+		IBuffer pointer queue to send.
+		Top of IBUffer in queue is currently in progress sending operation.
+	*/
+	std::deque<CComPtr<IBuffer>> m_buffersToSend;
 };
 
 template<class T>

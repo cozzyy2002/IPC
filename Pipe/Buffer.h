@@ -11,12 +11,12 @@ struct BufferHeader {
 };
 
 /**
-BYTE m_buffer[sizeof(BufferHeader) + size]
-[0]	BufferHeader	<- getHeader()
-:					<- sizeof(BufferHeader)
-[N]	user data		<- getBuffer()
-:					<- getSize()
-[M]
+	BYTE m_buffer[sizeof(BufferHeader) + size]
+	[0]	BufferHeader	<- getHeader()
+	:					<- sizeof(BufferHeader)
+	[N]	user data		<- getBuffer()
+	:					<- getSize()
+	[M]
 */
 class CBuffer : public CPipe::IBuffer, public CUnknownImpl {
 public:
@@ -31,6 +31,7 @@ public:
 
 	// Internal methods
 	DWORD getSize() { return m_size; }
+	DWORD getTotalSize() { return m_totalSize; }
 	BufferHeader* getHeader() { return (BufferHeader*)(m_buffer ? m_buffer.get() : NULL); }
 	BYTE* getBuffer() { return m_buffer ? m_buffer.get() + sizeof(BufferHeader) : NULL; }
 
@@ -38,5 +39,6 @@ public:
 
 protected:
 	DWORD m_size;
+	DWORD m_totalSize;
 	buffer_t m_buffer;
 };

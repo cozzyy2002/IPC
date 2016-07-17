@@ -17,9 +17,12 @@ HRESULT CPipe::IBuffer::createInstance(DWORD size, IBuffer** ppInstance)
 
 CBuffer::CBuffer(DWORD size, HRESULT& hr) : m_size(size)
 {
-	DWORD total = sizeof(BufferHeader) + size;
-	m_buffer.reset(new(std::nothrow) CBuffer::buffer_t::element_type[total]);
+	m_totalSize = sizeof(BufferHeader) + size;
+	m_buffer.reset(new(std::nothrow) CBuffer::buffer_t::element_type[m_totalSize]);
 	hr = HR_EXPECT(m_buffer, E_OUTOFMEMORY);
+	if (SUCCEEDED(hr)) {
+		getHeader()->userDataSize = size;
+	}
 }
 
 HRESULT CBuffer::GetSie(DWORD * pSize)

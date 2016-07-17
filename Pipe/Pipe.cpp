@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "Pipe.h"
+#include "Buffer.h"
 #include <win32/Enum.h>
 #include <win32/ComUtils.h>
 
@@ -19,27 +20,31 @@ CPipe::~CPipe()
 
 HRESULT CPipe::send(const BYTE * data, size_t size)
 {
+	CComPtr<IBuffer> iBuffer;
+	HR_ASSERT_OK(IBuffer::createInstance(size, &iBuffer));
+	CBuffer* buffer = CBuffer::getImpl(iBuffer);
+	CopyMemory(buffer->getBuffer(), data, size);
+
+	return send(iBuffer);
+}
+
+HRESULT CPipe::send(IBuffer* iBuffer)
+{
 	HR_ASSERT(m_isConnected, E_ILLEGAL_METHOD_CALL);
 
-	// Send header
-	IO headerIO;
-	DataHeader header = { size };
-	WriteFile(m_pipe, &header, sizeof(header), NULL, &headerIO);
-	HANDLE hEvents[] = { headerIO, m_shutdownEvent };
-	DWORD wait = WaitForMultipleObjects(ARRAYSIZE(hEvents), hEvents, FALSE, INFINITE);
-	switch (wait) {
-	case 0:
-		// Send data
-		WriteFile(m_pipe, data, size, NULL, &m_sendIO);
-		break;
-	case 1:
-		return S_SHUTDOWN;
-	default:
-		// Always fails.
-		WIN32_ASSERT(wait < ARRAYSIZE(hEvents));
-		break;
+	HRESULT hr = S_OK;
+	m_buffersToSend.push_back(iBuffer);
+	if (m_buffersToSend.size() == 1) {
+		hr = write(iBuffer);
 	}
-	return S_OK;
+
+	return hr;
+}
+
+HRESULT CPipe::write(IBuffer* iBuffer)
+{
+	CBuffer* buffer = CBuffer::getImpl(iBuffer);
+	return WIN32_EXPECT(WriteFile(m_pipe, buffer->getHeader(), buffer->getTotalSize(), NULL, &m_sendIO));
 }
 
 // Index of events used as object to be waited in worker thread.
@@ -83,6 +88,13 @@ HRESULT CPipe::setup(bool isConnected)
 			case wait.Sent:			// Complete to send data.
 				if (onCompletedToSend) {
 					HR_ASSERT_OK(onCompletedToSend());
+				}
+
+				HR_ASSERT(0 <= m_buffersToSend.size(), E_UNEXPECTED);
+				m_buffersToSend.pop_front();
+				// Send next buffer if exist.
+				if (0 != m_buffersToSend.size()) {
+					HR_ASSERT_OK(write(m_buffersToSend.front()));
 				}
 				break;
 			case wait.Shutdown:		// Shutdown event

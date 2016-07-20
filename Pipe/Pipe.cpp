@@ -59,7 +59,7 @@ HRESULT CPipe::mainThread(bool isConnected)
 
 		switch (wait) {
 		case wait.Connected:	// Connected
-			LOG4CPLUS_INFO(logger, className << ": Connected.");
+			LOG4CPLUS_DEBUG(logger, className << ": Connected.");
 			m_isConnected = true;
 			WIN32_ASSERT(ResetEvent(m_connectIO));
 			if (onConnected) {

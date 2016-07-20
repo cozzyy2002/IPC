@@ -17,7 +17,6 @@ public:
 
 		static HRESULT createInstance(DWORD size, IBuffer** ppInstance);
 		static HRESULT createInstance(DWORD size, const void* data, IBuffer** ppInstance);
-		static HRESULT createInstance(const std::vector<BYTE> data, IBuffer** ppInstance);
 	};
 
 	CPipe();

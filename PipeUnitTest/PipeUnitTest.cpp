@@ -59,7 +59,7 @@ void PipeTest::connectAndWait()
 		SetEvent(hClientEvent);
 		return S_OK;
 	};
-	WIN32_EXPECT(WaitForMultipleObjects(2, hEvents, TRUE, 1000));
+	WIN32_EXPECT(WaitForMultipleObjects(2, hEvents, TRUE, 100));
 
 	ASSERT_TRUE(server->isConnected());
 	ASSERT_TRUE(client->isConnected());
@@ -94,7 +94,7 @@ TEST_F(PipeTest, normal)
 	};
 
 	CComPtr<CPipe::IBuffer> buffer;
-	ASSERT_HRESULT_SUCCEEDED(CPipe::IBuffer::createInstance(dataToSend, &buffer));
+	ASSERT_HRESULT_SUCCEEDED(CPipe::IBuffer::createInstance(dataToSend.size(), dataToSend.data(), &buffer));
 	ASSERT_HRESULT_SUCCEEDED(client->send(buffer));
 	WIN32_EXPECT(WaitForMultipleObjects(2, hEvents, TRUE, 1000));
 
@@ -158,7 +158,7 @@ TEST_F(PipeTest, MultiData)
 	std::for_each(datasToSend.begin(), datasToSend.end(), [&](const std::string& str)
 	{
 		std::map<std::string, int>::iterator i = datasReceived.find(str);
-		EXPECT_NE(i, datasReceived.end());
+		ASSERT_NE(i, datasReceived.end());
 		EXPECT_EQ(i->second, 1);
 	});
 }

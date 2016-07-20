@@ -3,6 +3,7 @@
 
 /*static*/ HRESULT CPipe::IBuffer::createInstance(DWORD size, IBuffer** ppInstance)
 {
+	HR_ASSERT(0 < size, E_INVALIDARG);
 	HR_ASSERT(ppInstance, E_POINTER);
 	*ppInstance = NULL;
 
@@ -23,11 +24,6 @@
 		CopyMemory(buffer->data, data, size);
 	}
 	return hr;
-}
-
-/*static*/ HRESULT CPipe::IBuffer::createInstance(const std::vector<BYTE> data, IBuffer** ppInstance)
-{
-	return createInstance(data.size(), data.data(), ppInstance);
 }
 
 /*

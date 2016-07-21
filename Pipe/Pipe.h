@@ -2,10 +2,9 @@
 
 #include <win32/Win32Utils.h>
 #include <vector>
-#include <deque>
 #include <thread>
 
-#define S_SHUTDOWN S_FALSE
+#define S_PIPE_SHUTDOWN S_FALSE
 
 class CPipe
 {
@@ -19,7 +18,20 @@ public:
 		static HRESULT createInstance(DWORD size, const void* data, IBuffer** ppInstance);
 	};
 
-	CPipe();
+	// Opaque channel to identify pipe channel
+	struct IChannel {
+		virtual ~IChannel() {}
+
+		// Shortcut to CPipe::send()
+		virtual HRESULT send(IBuffer* iBuffer) PURE;
+
+		// Per channel callbacks
+		std::function <HRESULT()> onDisconnected;
+		std::function <HRESULT(IBuffer*)> onCompletedToSend;
+		std::function <HRESULT(IBuffer*)> onReceived;
+	};
+
+	CPipe(int channelCount);
 	virtual ~CPipe();
 
 	template<class T>
@@ -29,51 +41,32 @@ public:
 
 	HRESULT shutdown();
 
-	HRESULT send(IBuffer* iBuffer);
+	inline bool isConnected(IChannel* channel) const;
 
-	inline bool isConnected() const { return m_isConnected; }
+	HRESULT send(IChannel* channel, IBuffer* iBuffer);
 
-	std::function <HRESULT()> onConnected;
-	std::function <HRESULT(IBuffer*)> onCompletedToSend;
-	std::function <HRESULT(IBuffer*)> onReceived;
+	std::function <HRESULT(IChannel* channel)> onConnected;
+	std::function <HRESULT(IChannel* channel)> onDisconnected;
+	std::function <HRESULT(IChannel* channel, IBuffer*)> onCompletedToSend;
+	std::function <HRESULT(IChannel* channel, IBuffer*)> onReceived;
 
 protected:
-	// Structure used by overlapped IO
-	struct IO {
-		IO();
-
-		OVERLAPPED* operator&() { return &ov; }
-		operator HANDLE() { return ov.hEvent; }
-
-	protected:
-		OVERLAPPED ov;
-		CSafeEventHandle hEvent;
-	};
-
 	// Header of data to send or to be received.
 	struct DataHeader {
 		DWORD size;			// Byte size of following data.
 	};
 
-	HRESULT setup(bool isConnected);
-	HRESULT mainThread(bool isConnected);
-	HRESULT read(void* buffer, DWORD size);
-	HRESULT write(IBuffer* iBuffer);
+	typedef std::vector<std::unique_ptr<IChannel>> channels_t;
+
+	HRESULT setup();
+	HRESULT mainThread();
+	HRESULT read(IChannel* channel, void* buffer, DWORD size);
+	HRESULT write(IChannel* channel, IBuffer* iBuffer);
 
 	static const LPCTSTR m_pipeName;
-	CSafeHandle m_pipe;
+	channels_t m_channels;
 	CSafeEventHandle m_shutdownEvent;
-	IO m_connectIO;		// IO structure used when connect
-	IO m_receiveIO;		// IO structure used when receive data
-	IO m_sendIO;		// IO structure used when complete to send data
-	bool m_isConnected;
 	std::thread m_thread;
-
-	/**
-		IBuffer pointer queue to send.
-		Top of IBUffer in queue is currently in progress sending operation.
-	*/
-	std::deque<CComPtr<IBuffer>> m_buffersToSend;
 };
 
 template<class T>

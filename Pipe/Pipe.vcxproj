@@ -133,6 +133,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Buffer.h" />
+    <ClInclude Include="Channel.h" />
     <ClInclude Include="Pipe.h" />
     <ClInclude Include="PipeClient.h" />
     <ClInclude Include="PipeServer.h" />
@@ -141,6 +142,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Buffer.cpp" />
+    <ClCompile Include="Channel.cpp" />
     <ClCompile Include="Pipe.cpp" />
     <ClCompile Include="PipeClient.cpp" />
     <ClCompile Include="PipeServer.cpp" />

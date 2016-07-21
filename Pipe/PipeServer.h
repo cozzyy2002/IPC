@@ -8,6 +8,6 @@ public:
 	~CPipeServer();
 
 protected:
-	CPipeServer();
+	CPipeServer(int channelCount = 1);
 	HRESULT setup();
 };

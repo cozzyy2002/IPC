@@ -1,22 +1,23 @@
 #include "stdafx.h"
 #include "Pipe.h"
+#include "Channel.h"
 #include "Buffer.h"
-#include <win32/Enum.h>
 #include <win32/ComUtils.h>
 #include <mutex>
 
 static log4cplus::Logger logger = log4cplus::Logger::getInstance(LOG4CPLUS_TEXT("Pipe.Pipe"));
-
-static std::mutex g_sendMutex;
 
 /*static*/ const LPCTSTR CPipe::m_pipeName = _T("\\\\.\\pipe\\CPipe.MasterPipe");
 
 // Check result of overlapped IO.
 static HRESULT checkPending(BOOL ret);
 
-CPipe::CPipe()
-	: m_isConnected(false)
+CPipe::CPipe(int channelCount)
 {
+	m_channels.reserve(channelCount);
+	for (int i = 0; i < channelCount; i++) {
+		m_channels[i] = std::move(channels_t::value_type(new Channel(this)));
+	}
 }
 
 
@@ -24,14 +25,14 @@ CPipe::~CPipe()
 {
 }
 
-HRESULT CPipe::setup(bool isConnected)
+HRESULT CPipe::setup()
 {
-	m_thread = std::thread([this, isConnected]() { return mainThread(isConnected); });
+	m_thread = std::thread([this]() { return mainThread(); });
 
 	return S_OK;
 }
 
-HRESULT CPipe::mainThread(bool isConnected)
+HRESULT CPipe::mainThread()
 {
 	// m_isConnected should be false when this thread terminates.
 	CSafeValue<bool, false> _isConnected(&m_isConnected);
@@ -45,11 +46,6 @@ HRESULT CPipe::mainThread(bool isConnected)
 		WIN32_ASSERT(SetEvent(m_connectIO));
 	}
 
-	CBuffer::Header readHeader = { 0 };
-	CComPtr<IBuffer> readBuffer;
-
-	// Index of events used as object to be waited in worker thread.
-	ENUM(WaitResult, Connected, Received, Sent, Shutdown);
 
 	while (hr == S_OK) {
 		// WaitResult                         Connected    Received     Sent      Shutdown
@@ -117,7 +113,7 @@ HRESULT CPipe::mainThread(bool isConnected)
 			}
 			break;
 		case wait.Shutdown:		// Shutdown event
-			hr = S_SHUTDOWN;
+			hr = S_PIPE_SHUTDOWN;
 			break;
 		default:
 			// Always fails.
@@ -143,11 +139,11 @@ HRESULT CPipe::shutdown()
 
 HRESULT CPipe::send(IBuffer* iBuffer)
 {
+	std::lock_guard<std::mutex> lock(g_sendMutex);
+
 	HR_ASSERT(m_isConnected, E_ILLEGAL_METHOD_CALL);
 
 	HRESULT hr = S_OK;
-
-	std::lock_guard<std::mutex> lock(g_sendMutex);
 
 	m_buffersToSend.push_back(iBuffer);
 	if (m_buffersToSend.size() == 1) {
@@ -181,10 +177,4 @@ HRESULT checkPending(BOOL ret)
 		hr = (error == ERROR_IO_PENDING) ? S_FALSE : HRESULT_FROM_WIN32(error);
 	}
 	return hr;
-}
-
-CPipe::IO::IO()
-{
-	ZeroMemory(&ov, sizeof(ov));
-	ov.hEvent = hEvent;
 }

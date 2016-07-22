@@ -29,6 +29,10 @@ public:
 
 	std::unique_ptr<CPipeServer> server;
 	std::unique_ptr<CPipeClient> client;
+	CPipe::IChannel* serverChannel;
+	CPipe::IChannel* clientChannel;
+
+	PipeTest() : serverChannel(NULL), clientChannel(NULL) {}
 
 	void SetUp() {
 		ASSERT_HRESULT_SUCCEEDED(CPipe::createInstance(server));
@@ -37,8 +41,8 @@ public:
 	void TearDown() {
 		EXPECT_HRESULT_SUCCEEDED(client->shutdown());
 		EXPECT_HRESULT_SUCCEEDED(server->shutdown());
-		EXPECT_FALSE(client->isConnected());
-		EXPECT_FALSE(server->isConnected());
+		if(clientChannel) EXPECT_FALSE(clientChannel->isConnected());
+		if(serverChannel) EXPECT_FALSE(serverChannel->isConnected());
 	}
 
 	void connectAndWait();
@@ -49,20 +53,28 @@ void PipeTest::connectAndWait()
 	CSafeEventHandle  hServerEvent(FALSE), hClientEvent(FALSE);
 	HANDLE hEvents[] = { hServerEvent, hClientEvent };
 
-	server->onConnected = [&]()
+	server->onConnected = [&](CPipe::IChannel* channel)
 	{
+		serverChannel = channel;
 		SetEvent(hServerEvent);
 		return S_OK;
 	};
-	client->onConnected = [&]()
+	client->onConnected = [&](CPipe::IChannel* channel)
 	{
+		clientChannel = channel;
 		SetEvent(hClientEvent);
 		return S_OK;
 	};
-	WIN32_EXPECT(WaitForMultipleObjects(2, hEvents, TRUE, 100));
 
-	ASSERT_TRUE(server->isConnected());
-	ASSERT_TRUE(client->isConnected());
+	ASSERT_HRESULT_SUCCEEDED(server->setup());
+	ASSERT_HRESULT_SUCCEEDED(client->setup());
+
+	ASSERT_LT(WaitForMultipleObjects(ARRAYSIZE(hEvents), hEvents, TRUE, 100), ARRAYSIZE(hEvents));
+
+	ASSERT_TRUE(serverChannel);
+	ASSERT_TRUE(clientChannel);
+	EXPECT_TRUE(serverChannel->isConnected());
+	EXPECT_TRUE(clientChannel->isConnected());
 }
 
 TEST_F(PipeTest, normal)
@@ -74,7 +86,7 @@ TEST_F(PipeTest, normal)
 
 	data_t dataToSend{ 1, 2, 3, 0, 5 };
 	data_t receivedData;
-	server->onReceived = [&](CPipe::IBuffer* buffer)
+	server->onReceived = [&](CPipe::IChannel* channel, CPipe::IBuffer* buffer)
 	{
 		BYTE* data;
 		buffer->GetBuffer((void**)&data);
@@ -86,7 +98,7 @@ TEST_F(PipeTest, normal)
 	};
 
 	CPipe::IBuffer* bufferSent = NULL;
-	client->onCompletedToSend = [&](CPipe::IBuffer* buffer)
+	client->onCompletedToSend = [&](CPipe::IChannel* channel, CPipe::IBuffer* buffer)
 	{
 		bufferSent = buffer;
 		SetEvent(hClientEvent);
@@ -95,7 +107,7 @@ TEST_F(PipeTest, normal)
 
 	CComPtr<CPipe::IBuffer> buffer;
 	ASSERT_HRESULT_SUCCEEDED(CPipe::IBuffer::createInstance(dataToSend.size(), dataToSend.data(), &buffer));
-	ASSERT_HRESULT_SUCCEEDED(client->send(buffer));
+	ASSERT_HRESULT_SUCCEEDED(clientChannel->send(buffer));
 	WIN32_EXPECT(WaitForMultipleObjects(2, hEvents, TRUE, 1000));
 
 	EXPECT_EQ(dataToSend, receivedData);
@@ -123,7 +135,7 @@ TEST_F(PipeTest, MultiData)
 	// Value: received count. 1 is expected.
 	std::map<std::string, int> datasReceived;
 
-	server->onReceived = [&](CPipe::IBuffer* buffer)
+	server->onReceived = [&](CPipe::IChannel* channel, CPipe::IBuffer* buffer)
 	{
 		BYTE* data;
 		buffer->GetBuffer((void**)&data);
@@ -147,7 +159,7 @@ TEST_F(PipeTest, MultiData)
 		// Send string including terminating zero.
 		CComPtr<CPipe::IBuffer> buffer;
 		ASSERT_HRESULT_SUCCEEDED(CPipe::IBuffer::createInstance(str.size() + 1, str.c_str(), &buffer));
-		ASSERT_HRESULT_SUCCEEDED(client->send(buffer));
+		ASSERT_HRESULT_SUCCEEDED(clientChannel->send(buffer));
 	});
 
 	Sleep(1000);

@@ -35,7 +35,6 @@ HRESULT CPipeServer::setup()
 			break;
 		case ERROR_PIPE_CONNECTED:
 			WIN32_ASSERT(SetEvent(channel->connectIO));
-			channel->isConnected = true;
 			break;
 		default:
 			WIN32_FAIL(ConnectNamedPipe(), error);

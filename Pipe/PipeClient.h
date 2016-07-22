@@ -7,7 +7,8 @@ class CPipeClient : public CPipe
 public:
 	~CPipeClient();
 
+	HRESULT setup();
+
 protected:
 	CPipeClient();
-	HRESULT setup();
 };

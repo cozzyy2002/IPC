@@ -14,7 +14,7 @@ static HRESULT checkPending(BOOL ret);
 
 CPipe::CPipe(int channelCount)
 {
-	m_channels.reserve(channelCount);
+	m_channels.resize(channelCount);
 	for (int i = 0; i < channelCount; i++) {
 		m_channels[i] = std::move(channels_t::value_type(new Channel(this)));
 	}
@@ -35,89 +35,104 @@ HRESULT CPipe::setup()
 HRESULT CPipe::mainThread()
 {
 	// m_isConnected should be false when this thread terminates.
-	CSafeValue<bool, false> _isConnected(&m_isConnected);
-	m_isConnected = isConnected;
+	// TODO: isConnected of each channel must be fales when this function exits.
 
 	LPCSTR className = typeid(*this).name();
 
 	HRESULT hr = S_OK;
 
-	if (m_isConnected) {
-		WIN32_ASSERT(SetEvent(m_connectIO));
+	// Events for connect, receive, send and shutdown.
+	static const DWORD eventCount = (m_channels.size() * IO::Type::COUNT) + 1;
+	std::unique_ptr<HANDLE[]> hEvents(new HANDLE[eventCount]);
+	for (size_t i = 0; i < m_channels.size(); i++) {
+		int ch = i * IO::Type::COUNT;
+		Channel* channel = ((Channel*)m_channels[i].get());
+		hEvents[ch + channel->connectIO.type] = channel->connectIO;
+		hEvents[ch + channel->receiveIO.type] = channel->receiveIO;
+		hEvents[ch + channel->sendIO.type] = channel->sendIO;
 	}
-
+	hEvents[eventCount - 1] = m_shutdownEvent;
 
 	while (hr == S_OK) {
-		// WaitResult                         Connected    Received     Sent      Shutdown
-		HANDLE hEvents[WaitResult::COUNT] = { m_connectIO, m_receiveIO, m_sendIO, m_shutdownEvent };
-		WaitResult wait((WaitResult::Values)WaitForMultipleObjects(ARRAYSIZE(hEvents), hEvents, FALSE, INFINITE));
-		LOG4CPLUS_DEBUG(logger, className << ": Event set: " << wait.toString() << ":" << (int)wait);
+		DWORD wait = WaitForMultipleObjects(eventCount, hEvents.get(), FALSE, INFINITE);
 
-		switch (wait) {
-		case wait.Connected:	// Connected
-			LOG4CPLUS_DEBUG(logger, className << ": Connected.");
-			m_isConnected = true;
-			WIN32_ASSERT(ResetEvent(m_connectIO));
+		HR_ASSERT(wait != WAIT_TIMEOUT, E_UNEXPECTED);	// Timeout(can not occur)
+		WIN32_ASSERT(wait < eventCount);				// Error
+		if(wait == (eventCount - 1)) {					// Shutdown event
+			hr = S_PIPE_SHUTDOWN;
+			break;
+		}
+
+		DWORD ch = wait / IO::Type::COUNT;
+		IO::Type ioType((IO::Type::Values)(wait % IO::Type::COUNT));
+		LOG4CPLUS_DEBUG(logger, className << ": Event set: channel=" << ch << ", IO=" << IO::Type::toString(ioType) << ":" << (int)ioType);
+
+		HR_ASSERT(ch < m_channels.size(), E_UNEXPECTED);
+
+		Channel* channel = (Channel*)m_channels[ch].get();
+		DWORD numberOfBytesTransferred;
+
+		switch (ioType) {
+		case IO::Type::Connect:	// Connected
+			LOG4CPLUS_DEBUG(logger, className << ": Connected. Channel=" << ch);
+			channel->m_isConnected = true;
+			WIN32_ASSERT(ResetEvent(channel->connectIO));
 			if (onConnected) {
-				HR_ASSERT_OK(onConnected());
+				HR_ASSERT_OK(onConnected(channel));
 			}
 
 			// Prepare to receive header
-			HR_ASSERT_OK(read(&readHeader, sizeof(readHeader)));
+			HR_ASSERT_OK(read(channel, &channel->readHeader, sizeof(channel->readHeader)));
 			break;
-		case wait.Received:		// Received header or user data.
-			{
-				DWORD numberOfBytesTransferred = 0;
-				WIN32_ASSERT(GetOverlappedResult(m_pipe, &m_receiveIO, &numberOfBytesTransferred, FALSE));
-				LOG4CPLUS_DEBUG(logger, "Received " << numberOfBytesTransferred << "byte");
-				if(!readBuffer) {
-					// Received buffer header.
-					HR_ASSERT(sizeof(readHeader) == numberOfBytesTransferred, E_UNEXPECTED);
 
-					// Prepare to receive user data.
-					HR_ASSERT_OK(IBuffer::createInstance(readHeader.dataSize, &readBuffer));
-					CBuffer* p = CBuffer::getImpl(readBuffer);
-					HR_ASSERT_OK(read(p->data, readHeader.dataSize));
-				} else {
-					// Receied user data.
-					CBuffer* p = CBuffer::getImpl(readBuffer);
-					HR_ASSERT(p->header->dataSize == numberOfBytesTransferred, E_UNEXPECTED);
+		case IO::Type::Receive:		// Received header or user data.
+			WIN32_ASSERT(GetOverlappedResult(channel->hPipe, &channel->receiveIO, &numberOfBytesTransferred, FALSE));
+			LOG4CPLUS_DEBUG(logger, "Received " << numberOfBytesTransferred << "byte");
+			if(!channel->readBuffer) {
+				// Received buffer header.
+				HR_ASSERT(sizeof(channel->readHeader) == numberOfBytesTransferred, E_UNEXPECTED);
 
-					if (onReceived) {
-						HR_ASSERT_OK(onReceived(readBuffer));
-					}
+				// Prepare to receive user data.
+				HR_ASSERT_OK(IBuffer::createInstance(channel->readHeader.dataSize, &channel->readBuffer));
+				CBuffer* p = CBuffer::getImpl(channel->readBuffer);
+				HR_ASSERT_OK(read(channel, p->data, channel->readHeader.dataSize));
+			} else {
+				// Receied user data.
+				CBuffer* p = CBuffer::getImpl(channel->readBuffer);
+				HR_ASSERT(p->header->dataSize == numberOfBytesTransferred, E_UNEXPECTED);
 
-					// Prepare to receive next header
-					readBuffer.Release();
-					HR_ASSERT_OK(read(&readHeader, sizeof(readHeader)));
+				if (onReceived) {
+					HR_ASSERT_OK(onReceived(channel, channel->readBuffer));
 				}
+
+				// Prepare to receive next header
+				channel->readBuffer.Release();
+				HR_ASSERT_OK(read(channel, &channel->readHeader, sizeof(channel->readHeader)));
 			}
 			break;
-		case wait.Sent:			// Complete to send data.
-			{
-				std::lock_guard<std::mutex> lock(g_sendMutex);
 
-				HR_ASSERT(0 <= m_buffersToSend.size(), E_UNEXPECTED);
+		case IO::Type::Send:			// Complete to send data.
+			{
+				std::lock_guard<std::mutex> lock(channel->sendMutex);
+
+				HR_ASSERT(0 <= channel->buffersToSend.size(), E_UNEXPECTED);
 				if (onCompletedToSend) {
-					IBuffer* buffer = m_buffersToSend.front();
-					HR_ASSERT_OK(onCompletedToSend(buffer));
+					IBuffer* buffer = channel->buffersToSend.front();
+					HR_ASSERT_OK(onCompletedToSend(channel, buffer));
 				}
 
 				// Remove current buffer and send next buffer if exist.
-				m_buffersToSend.pop_front();
-				if (0 < m_buffersToSend.size()) {
-					HR_ASSERT_OK(write(m_buffersToSend.front()));
+				channel->buffersToSend.pop_front();
+				if (0 < channel->buffersToSend.size()) {
+					HR_ASSERT_OK(write(channel, channel->buffersToSend.front()));
 				} else {
-					WIN32_ASSERT(ResetEvent(m_sendIO));
+					WIN32_ASSERT(ResetEvent(channel->sendIO));
 				}
 			}
 			break;
-		case wait.Shutdown:		// Shutdown event
-			hr = S_PIPE_SHUTDOWN;
-			break;
 		default:
 			// Always fails.
-			WIN32_ASSERT(wait < ARRAYSIZE(hEvents));
+			HR_ASSERT(!"IO type is out of range", E_UNEXPECTED);
 			break;
 		}
 	}
@@ -137,33 +152,36 @@ HRESULT CPipe::shutdown()
 	return hr;
 }
 
-HRESULT CPipe::send(IBuffer* iBuffer)
+HRESULT CPipe::send(IChannel* iChannel, IBuffer* iBuffer)
 {
-	std::lock_guard<std::mutex> lock(g_sendMutex);
+	Channel* channel = (Channel*)iChannel;
+	std::lock_guard<std::mutex> lock(channel->sendMutex);
 
-	HR_ASSERT(m_isConnected, E_ILLEGAL_METHOD_CALL);
+	HR_ASSERT(channel->m_isConnected, E_ILLEGAL_METHOD_CALL);
 
 	HRESULT hr = S_OK;
 
-	m_buffersToSend.push_back(iBuffer);
-	if (m_buffersToSend.size() == 1) {
-		hr = write(iBuffer);
+	channel->buffersToSend.push_back(iBuffer);
+	if (channel->buffersToSend.size() == 1) {
+		hr = write(channel, iBuffer);
 	}
 
 	return hr;
 }
 
-HRESULT CPipe::read(void* buffer, DWORD size)
+HRESULT CPipe::read(IChannel* iChannel, void* buffer, DWORD size)
 {
-	HRESULT hr = checkPending(ReadFile(m_pipe, buffer, size, NULL, &m_receiveIO));
+	Channel* channel = (Channel*)iChannel;
+	HRESULT hr = checkPending(ReadFile(channel->hPipe, buffer, size, NULL, &channel->receiveIO));
 	LOG4CPLUS_DEBUG(logger, "Reading " << size << " byte. " << (hr == S_OK ? "Done." : "Pending."));
 	return hr;
 }
 
-HRESULT CPipe::write(IBuffer* iBuffer)
+HRESULT CPipe::write(IChannel* iChannel, IBuffer* iBuffer)
 {
+	Channel* channel = (Channel*)iChannel;
 	CBuffer* buffer = CBuffer::getImpl(iBuffer);
-	HRESULT hr = checkPending(WriteFile(m_pipe, buffer->header, buffer->header->totalSize, NULL, &m_sendIO));
+	HRESULT hr = checkPending(WriteFile(channel->hPipe, buffer->header, buffer->header->totalSize, NULL, &channel->sendIO));
 	LOG4CPLUS_DEBUG(logger, "Writing " << buffer->header->totalSize << " byte. " << (hr == S_OK ? "Done." : "Pending."));
 	return hr;
 }

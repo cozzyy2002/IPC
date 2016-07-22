@@ -19,6 +19,6 @@ HRESULT CPipeClient::setup()
 	WIN32_ASSERT(channel->hPipe.isValid());
 
 	// At this point, pipe is connected to server.
-	channel->isConnected = true;
+	WIN32_ASSERT(SetEvent(channel->connectIO));
 	return CPipe::setup();
 }

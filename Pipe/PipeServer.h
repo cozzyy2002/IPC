@@ -7,7 +7,8 @@ class CPipeServer : public CPipe
 public:
 	~CPipeServer();
 
+	HRESULT setup();
+
 protected:
 	CPipeServer(int channelCount = 1);
-	HRESULT setup();
 };

@@ -39,8 +39,9 @@ struct Channel : public CPipe::IChannel {
 	IO receiveIO;		// IO structure used when receive data
 	IO sendIO;			// IO structure used when complete to send data
 
-	bool isConnected;
+	bool m_isConnected;
 	virtual HRESULT send(CPipe::IBuffer* buffer) { return pipe->send(this, buffer); }
+	virtual bool isConnected() const { return m_isConnected; }
 
 	CBuffer::Header readHeader;
 	CComPtr<CPipe::IBuffer> readBuffer;

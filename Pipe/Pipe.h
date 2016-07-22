@@ -22,8 +22,9 @@ public:
 	struct IChannel {
 		virtual ~IChannel() {}
 
-		// Shortcut to CPipe::send()
+		// Shortcut to CPipe methods
 		virtual HRESULT send(IBuffer* iBuffer) PURE;
+		virtual bool isConnected() const PURE;
 
 		// Per channel callbacks
 		std::function <HRESULT()> onDisconnected;
@@ -41,7 +42,7 @@ public:
 
 	HRESULT shutdown();
 
-	inline bool isConnected(IChannel* channel) const;
+	inline bool isConnected(IChannel* channel) const { return channel->isConnected(); }
 
 	HRESULT send(IChannel* channel, IBuffer* iBuffer);
 
@@ -75,11 +76,7 @@ inline HRESULT CPipe::createInstance(std::unique_ptr<T>& ptr)
 	ptr.reset(new(std::nothrow) T());
 	HR_ASSERT(ptr, E_OUTOFMEMORY);
 
-	HRESULT hr = ptr->setup();
-	if (FAILED(hr)) {
-		ptr.reset();
-	}
-	return hr;
+	return S_OK;
 }
 
 template<class T>

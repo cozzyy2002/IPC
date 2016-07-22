@@ -15,7 +15,7 @@ CPipeServer::CPipeServer(int channelCount /*= 1*/) : CPipe(channelCount)
 HRESULT CPipeServer::setup()
 {
 	for (channels_t::iterator ch = m_channels.begin(); ch != m_channels.end(); ch++) {
-		Channel* channel = (Channel*)ch->get();
+		Channel* channel = ch->get();
 
 		// Create server pipe instance
 		DWORD dwOpenMode = PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED;

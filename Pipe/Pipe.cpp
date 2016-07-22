@@ -46,7 +46,7 @@ HRESULT CPipe::mainThread()
 	std::unique_ptr<HANDLE[]> hEvents(new HANDLE[eventCount]);
 	for (size_t i = 0; i < m_channels.size(); i++) {
 		int ch = i * IO::Type::COUNT;
-		Channel* channel = ((Channel*)m_channels[i].get());
+		Channel* channel = m_channels[i].get();
 		hEvents[ch + channel->connectIO.type] = channel->connectIO;
 		hEvents[ch + channel->receiveIO.type] = channel->receiveIO;
 		hEvents[ch + channel->sendIO.type] = channel->sendIO;
@@ -70,7 +70,7 @@ HRESULT CPipe::mainThread()
 
 		HR_ASSERT(ch < m_channels.size(), E_UNEXPECTED);
 
-		Channel* channel = (Channel*)m_channels[ch].get();
+		Channel* channel = m_channels[ch].get();
 		DWORD numberOfBytesTransferred;
 
 		switch (ioType) {
@@ -144,7 +144,7 @@ HRESULT CPipe::mainThread()
 HRESULT CPipe::onExitMainThread()
 {
 	for (channels_t::iterator i = m_channels.begin(); i != m_channels.end(); i++) {
-		((Channel*)i->get())->invalidate();
+		i->get()->invalidate();
 	}
 
 	return S_OK;
@@ -164,7 +164,9 @@ HRESULT CPipe::shutdown()
 
 HRESULT CPipe::send(IChannel* iChannel, IBuffer* iBuffer)
 {
-	Channel* channel = (Channel*)iChannel;
+	Channel* channel = dynamic_cast<Channel*>(iChannel);
+	HR_ASSERT(channel != NULL, E_INVALIDARG);
+
 	std::lock_guard<std::mutex> lock(channel->sendMutex);
 
 	HR_ASSERT(channel->m_isConnected, E_ILLEGAL_METHOD_CALL);
@@ -179,17 +181,15 @@ HRESULT CPipe::send(IChannel* iChannel, IBuffer* iBuffer)
 	return hr;
 }
 
-HRESULT CPipe::read(IChannel* iChannel, void* buffer, DWORD size)
+HRESULT CPipe::read(Channel* channel, void* buffer, DWORD size)
 {
-	Channel* channel = (Channel*)iChannel;
 	HRESULT hr = checkPending(ReadFile(channel->hPipe, buffer, size, NULL, &channel->receiveIO));
 	LOG4CPLUS_DEBUG(logger, "Reading " << size << " byte. " << (hr == S_OK ? "Done." : "Pending."));
 	return hr;
 }
 
-HRESULT CPipe::write(IChannel* iChannel, IBuffer* iBuffer)
+HRESULT CPipe::write(Channel* channel, IBuffer* iBuffer)
 {
-	Channel* channel = (Channel*)iChannel;
 	CBuffer* buffer = CBuffer::getImpl(iBuffer);
 	HRESULT hr = checkPending(WriteFile(channel->hPipe, buffer->header, buffer->header->totalSize, NULL, &channel->sendIO));
 	LOG4CPLUS_DEBUG(logger, "Writing " << buffer->header->totalSize << " byte. " << (hr == S_OK ? "Done." : "Pending."));

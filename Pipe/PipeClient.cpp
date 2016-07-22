@@ -14,7 +14,7 @@ CPipeClient::~CPipeClient()
 
 HRESULT CPipeClient::setup()
 {
-	Channel* channel = (Channel*)m_channels[0].get();
+	Channel* channel = m_channels[0].get();
 	channel->hPipe.reset(CreateFile(m_pipeName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL));
 	WIN32_ASSERT(channel->hPipe.isValid());
 

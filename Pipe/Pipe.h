@@ -6,6 +6,8 @@
 
 #define S_PIPE_SHUTDOWN S_FALSE
 
+struct Channel;
+
 class CPipe
 {
 public:
@@ -57,13 +59,13 @@ protected:
 		DWORD size;			// Byte size of following data.
 	};
 
-	typedef std::vector<std::unique_ptr<IChannel>> channels_t;
+	typedef std::vector<std::unique_ptr<Channel>> channels_t;
 
 	HRESULT setup();
 	HRESULT mainThread();
 	HRESULT onExitMainThread();
-	HRESULT read(IChannel* channel, void* buffer, DWORD size);
-	HRESULT write(IChannel* channel, IBuffer* iBuffer);
+	HRESULT read(Channel* channel, void* buffer, DWORD size);
+	HRESULT write(Channel* channel, IBuffer* iBuffer);
 
 	static const LPCTSTR m_pipeName;
 	channels_t m_channels;

@@ -61,6 +61,7 @@ protected:
 
 	HRESULT setup();
 	HRESULT mainThread();
+	HRESULT onExitMainThread();
 	HRESULT read(IChannel* channel, void* buffer, DWORD size);
 	HRESULT write(IChannel* channel, IBuffer* iBuffer);
 
@@ -68,6 +69,11 @@ protected:
 	channels_t m_channels;
 	CSafeEventHandle m_shutdownEvent;
 	std::thread m_thread;
+
+	template<class T>
+	struct MainThreadDeleter {
+		void operator()(T* target) { target->onExitMainThread(); }
+	};
 };
 
 template<class T>

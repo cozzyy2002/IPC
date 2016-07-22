@@ -34,8 +34,8 @@ HRESULT CPipe::setup()
 
 HRESULT CPipe::mainThread()
 {
-	// m_isConnected should be false when this thread terminates.
-	// TODO: isConnected of each channel must be fales when this function exits.
+	// Register cleanup code.
+	std::unique_ptr<CPipe, MainThreadDeleter<CPipe>> _onExit(this);
 
 	LPCSTR className = typeid(*this).name();
 
@@ -59,6 +59,7 @@ HRESULT CPipe::mainThread()
 		HR_ASSERT(wait != WAIT_TIMEOUT, E_UNEXPECTED);	// Timeout(can not occur)
 		WIN32_ASSERT(wait < eventCount);				// Error
 		if(wait == (eventCount - 1)) {					// Shutdown event
+			LOG4CPLUS_INFO(logger, className << ": mainThread() exits.");
 			hr = S_PIPE_SHUTDOWN;
 			break;
 		}
@@ -74,7 +75,7 @@ HRESULT CPipe::mainThread()
 
 		switch (ioType) {
 		case IO::Type::Connect:	// Connected
-			LOG4CPLUS_DEBUG(logger, className << ": Connected. Channel=" << ch);
+			LOG4CPLUS_INFO(logger, className << ": Connected. Channel=" << ch);
 			channel->m_isConnected = true;
 			WIN32_ASSERT(ResetEvent(channel->connectIO));
 			if (onConnected) {
@@ -138,6 +139,15 @@ HRESULT CPipe::mainThread()
 	}
 
 	return hr;
+}
+
+HRESULT CPipe::onExitMainThread()
+{
+	for (channels_t::iterator i = m_channels.begin(); i != m_channels.end(); i++) {
+		((Channel*)i->get())->invalidate();
+	}
+
+	return S_OK;
 }
 
 HRESULT CPipe::shutdown()

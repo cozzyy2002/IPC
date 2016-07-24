@@ -2,13 +2,13 @@
 #include "Pipe.h"
 class CPipeServer : public CPipe
 {
-	friend class CPipe;
-
 public:
+	CPipeServer();
 	~CPipeServer();
 
-	HRESULT setup();
+	HRESULT start(int channelCount = 1);
+	HRESULT stop();
+	HRESULT disconnect(IChannel* channel);
 
 protected:
-	CPipeServer(int channelCount = 1);
 };

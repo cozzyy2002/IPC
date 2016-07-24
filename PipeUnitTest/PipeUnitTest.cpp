@@ -39,8 +39,8 @@ public:
 		ASSERT_HRESULT_SUCCEEDED(CPipe::createInstance(client));
 	}
 	void TearDown() {
-		EXPECT_HRESULT_SUCCEEDED(client->shutdown());
-		EXPECT_HRESULT_SUCCEEDED(server->shutdown());
+		EXPECT_HRESULT_SUCCEEDED(client->disconnect());
+		EXPECT_HRESULT_SUCCEEDED(server->stop());
 		if(clientChannel) EXPECT_FALSE(clientChannel->isConnected());
 		if(serverChannel) EXPECT_FALSE(serverChannel->isConnected());
 	}
@@ -66,8 +66,8 @@ void PipeTest::connectAndWait()
 		return S_OK;
 	};
 
-	ASSERT_HRESULT_SUCCEEDED(server->setup());
-	ASSERT_HRESULT_SUCCEEDED(client->setup());
+	ASSERT_HRESULT_SUCCEEDED(server->start());
+	ASSERT_HRESULT_SUCCEEDED(client->connect());
 
 	ASSERT_LT(WaitForMultipleObjects(ARRAYSIZE(hEvents), hEvents, TRUE, 100), ARRAYSIZE(hEvents));
 

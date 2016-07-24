@@ -12,12 +12,8 @@ static log4cplus::Logger logger = log4cplus::Logger::getInstance(LOG4CPLUS_TEXT(
 // Check result of overlapped IO.
 static HRESULT checkPending(BOOL ret);
 
-CPipe::CPipe(int channelCount)
+CPipe::CPipe()
 {
-	m_channels.resize(channelCount);
-	for (int i = 0; i < channelCount; i++) {
-		m_channels[i] = std::move(channels_t::value_type(new Channel(this)));
-	}
 }
 
 
@@ -25,11 +21,33 @@ CPipe::~CPipe()
 {
 }
 
-HRESULT CPipe::setup()
+HRESULT CPipe::setup(int channelCount)
+{
+	m_channels.resize(channelCount);
+	for (int i = 0; i < channelCount; i++) {
+		m_channels[i] = std::move(channels_t::value_type(new Channel(this, i)));
+	}
+
+	return S_OK;
+}
+
+HRESULT CPipe::start()
 {
 	m_thread = std::thread([this]() { return mainThread(); });
 
 	return S_OK;
+}
+
+HRESULT CPipe::stop()
+{
+	HRESULT hr = S_OK;
+	if (m_shutdownEvent.isValid()) {
+		hr = WIN32_EXPECT(SetEvent(m_shutdownEvent));
+		if (SUCCEEDED(hr)) {
+			m_thread.join();
+		}
+	}
+	return hr;
 }
 
 HRESULT CPipe::mainThread()
@@ -150,23 +168,16 @@ HRESULT CPipe::onExitMainThread()
 	return S_OK;
 }
 
-HRESULT CPipe::shutdown()
-{
-	HRESULT hr = S_OK;
-	if (m_shutdownEvent.isValid()) {
-		hr = WIN32_EXPECT(SetEvent(m_shutdownEvent));
-		if (SUCCEEDED(hr)) {
-			m_thread.join();
-		}
-	}
-	return hr;
-}
-
 HRESULT CPipe::send(IChannel* iChannel, IBuffer* iBuffer)
 {
-	Channel* channel = dynamic_cast<Channel*>(iChannel);
-	HR_ASSERT(channel != NULL, E_INVALIDARG);
+	Channel* channel;
+	HR_ASSERT_OK(getChannel(iChannel, &channel));
 
+	return send(channel, iBuffer);
+}
+
+HRESULT CPipe::send(Channel* channel, IBuffer* iBuffer)
+{
 	std::lock_guard<std::mutex> lock(channel->sendMutex);
 
 	HR_ASSERT(channel->m_isConnected, E_ILLEGAL_METHOD_CALL);
@@ -205,4 +216,20 @@ HRESULT checkPending(BOOL ret)
 		hr = (error == ERROR_IO_PENDING) ? S_FALSE : HRESULT_FROM_WIN32(error);
 	}
 	return hr;
+}
+
+/**
+Returns Channel object converted from IChannel.
+
+Ensure that the channel object is included in m_channels array.
+*/
+HRESULT CPipe::getChannel(IChannel* iChannel, Channel** pChannel) const
+{
+	Channel* channel = (Channel*)iChannel;
+	HR_ASSERT(0 <= channel->index, E_INVALIDARG);
+	HR_ASSERT(channel->index < (int)m_channels.size(), E_INVALIDARG);
+	HR_ASSERT(channel == m_channels[channel->index].get(), E_INVALIDARG);
+
+	*pChannel = channel;
+	return S_OK;
 }

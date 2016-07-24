@@ -8,12 +8,20 @@
 
 static log4cplus::Logger logger = log4cplus::Logger::getInstance(LOG4CPLUS_TEXT("Pipe.PipeServer"));
 
-CPipeServer::CPipeServer(int channelCount /*= 1*/) : CPipe(channelCount)
+CPipeServer::CPipeServer()
 {
 }
 
-HRESULT CPipeServer::setup()
+CPipeServer::~CPipeServer()
 {
+}
+
+HRESULT CPipeServer::start(int channelCount /*= 1*/)
+{
+	HR_ASSERT(0 < channelCount, E_INVALIDARG);
+
+	HR_ASSERT_OK(CPipe::setup(channelCount));
+
 	for (channels_t::iterator ch = m_channels.begin(); ch != m_channels.end(); ch++) {
 		Channel* channel = ch->get();
 
@@ -42,9 +50,21 @@ HRESULT CPipeServer::setup()
 	};
 
 	// Server is waiting for client to connect.
-	return CPipe::setup();
+	return CPipe::start();
 }
 
-CPipeServer::~CPipeServer()
+HRESULT CPipeServer::stop()
 {
+	return CPipe::stop();
+}
+
+HRESULT CPipeServer::disconnect(IChannel* iChannel)
+{
+	Channel* channel;
+	HR_ASSERT_OK(getChannel(iChannel, &channel));
+
+	channel->invalidate();
+	WIN32_ASSERT(DisconnectNamedPipe(channel->hPipe));
+
+	return S_OK;
 }

@@ -10,6 +10,7 @@ struct Channel;
 
 class CPipe
 {
+	friend struct Channel;
 public:
 	class IBuffer : public IUnknown {
 	public:
@@ -34,19 +35,13 @@ public:
 		std::function <HRESULT(IBuffer*)> onReceived;
 	};
 
-	CPipe(int channelCount);
-	virtual ~CPipe();
-
 	template<class T>
 	static HRESULT createInstance(std::unique_ptr<T>& ptr);
 	template<class T>
 	static HRESULT createInstance(T** pp);
 
-	HRESULT shutdown();
-
-	inline bool isConnected(IChannel* channel) const { return channel->isConnected(); }
-
 	HRESULT send(IChannel* channel, IBuffer* iBuffer);
+	inline bool isConnected(IChannel* channel) const { return channel->isConnected(); }
 
 	std::function <HRESULT(IChannel* channel)> onConnected;
 	std::function <HRESULT(IChannel* channel)> onDisconnected;
@@ -61,11 +56,20 @@ protected:
 
 	typedef std::vector<std::unique_ptr<Channel>> channels_t;
 
-	HRESULT setup();
+	CPipe();
+	virtual ~CPipe();
+
+	HRESULT setup(int channelCount);
+	HRESULT start();
+	HRESULT stop();
+	HRESULT send(Channel* channel, IBuffer* iBuffer);
+
 	HRESULT mainThread();
 	HRESULT onExitMainThread();
 	HRESULT read(Channel* channel, void* buffer, DWORD size);
 	HRESULT write(Channel* channel, IBuffer* iBuffer);
+
+	HRESULT getChannel(IChannel* iChannel, Channel** pChannel) const;
 
 	static const LPCTSTR m_pipeName;
 	channels_t m_channels;

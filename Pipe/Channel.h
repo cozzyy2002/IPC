@@ -35,6 +35,9 @@ protected:
 struct Channel : public CPipe::IChannel {
 	CSafeHandle hPipe;	// Pipe handle
 
+	// Index in channels array
+	int index;
+
 	IO connectIO;		// IO structure used when connect
 	IO receiveIO;		// IO structure used when receive data
 	IO sendIO;			// IO structure used when complete to send data
@@ -54,7 +57,7 @@ struct Channel : public CPipe::IChannel {
 
 	std::mutex sendMutex;
 
-	Channel(CPipe* pipe);
+	Channel(CPipe* pipe, int index);
 	void invalidate();
 
 protected:

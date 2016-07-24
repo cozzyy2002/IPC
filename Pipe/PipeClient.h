@@ -2,13 +2,14 @@
 #include "Pipe.h"
 class CPipeClient : public CPipe
 {
-	friend class CPipe;
-
 public:
+	CPipeClient();
 	~CPipeClient();
 
-	HRESULT setup();
+	HRESULT connect();
+	HRESULT disconnect();
+
+	HRESULT send(IBuffer* iBuffer);
 
 protected:
-	CPipeClient();
 };

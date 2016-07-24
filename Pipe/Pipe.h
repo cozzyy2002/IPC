@@ -2,13 +2,15 @@
 
 #include <win32/Win32Utils.h>
 #include <vector>
-#include <deque>
 #include <thread>
 
-#define S_SHUTDOWN S_FALSE
+#define S_PIPE_SHUTDOWN S_FALSE
+
+struct Channel;
 
 class CPipe
 {
+	friend struct Channel;
 public:
 	class IBuffer : public IUnknown {
 	public:
@@ -19,61 +21,69 @@ public:
 		static HRESULT createInstance(DWORD size, const void* data, IBuffer** ppInstance);
 	};
 
-	CPipe();
-	virtual ~CPipe();
+	// Opaque channel to identify pipe channel
+	struct IChannel {
+		virtual ~IChannel() {}
+
+		// Shortcut to CPipe methods
+		virtual HRESULT send(IBuffer* iBuffer) PURE;
+		virtual bool isConnected() const PURE;
+
+		// Per channel callbacks
+		std::function <HRESULT()> onDisconnected;
+		std::function <HRESULT(IBuffer*)> onCompletedToSend;
+		std::function <HRESULT(IBuffer*)> onReceived;
+	};
 
 	template<class T>
 	static HRESULT createInstance(std::unique_ptr<T>& ptr);
 	template<class T>
 	static HRESULT createInstance(T** pp);
 
-	HRESULT shutdown();
-
-	HRESULT send(IBuffer* iBuffer);
-
-	inline bool isConnected() const { return m_isConnected; }
-
-	std::function <HRESULT()> onConnected;
-	std::function <HRESULT(IBuffer*)> onCompletedToSend;
-	std::function <HRESULT(IBuffer*)> onReceived;
-
 protected:
-	// Structure used by overlapped IO
-	struct IO {
-		IO();
-
-		OVERLAPPED* operator&() { return &ov; }
-		operator HANDLE() { return ov.hEvent; }
-
-	protected:
-		OVERLAPPED ov;
-		CSafeEventHandle hEvent;
-	};
-
 	// Header of data to send or to be received.
 	struct DataHeader {
 		DWORD size;			// Byte size of following data.
 	};
 
-	HRESULT setup(bool isConnected);
-	HRESULT mainThread(bool isConnected);
-	HRESULT read(void* buffer, DWORD size);
-	HRESULT write(IBuffer* iBuffer);
+	typedef std::vector<std::unique_ptr<Channel>> channels_t;
+
+	CPipe();
+	virtual ~CPipe();
+
+	HRESULT setup(int channelCount);
+	HRESULT start();
+	HRESULT stop();
+	HRESULT send(Channel* channel, IBuffer* iBuffer);
+	HRESULT send(IChannel* channel, IBuffer* iBuffer);
+
+#pragma region Event handlers implemented by sub classes
+	virtual HRESULT handleConnectedEvent(Channel* channel) { return S_OK; }
+	virtual HRESULT handleErrorEvent(Channel* channel, HRESULT hr) { return S_OK; }
+	virtual HRESULT handleReceivedEvent(Channel* channel, IBuffer* buffer) { return S_OK; }
+	virtual HRESULT handleCompletedToSendEvent(Channel* channel, IBuffer* buffer) { return S_OK; }
+#pragma endregion
+
+	HRESULT onConnected(Channel* channel);
+	HRESULT onReceived(Channel* channel);
+	HRESULT onCompletedToSend(Channel* channel);
+
+	HRESULT mainThread();
+	HRESULT onExitMainThread();
+	HRESULT read(Channel* channel, void* buffer, DWORD size);
+	HRESULT write(Channel* channel, IBuffer* iBuffer);
+
+	HRESULT getChannel(IChannel* iChannel, Channel** pChannel) const;
 
 	static const LPCTSTR m_pipeName;
-	CSafeHandle m_pipe;
+	channels_t m_channels;
 	CSafeEventHandle m_shutdownEvent;
-	IO m_connectIO;		// IO structure used when connect
-	IO m_receiveIO;		// IO structure used when receive data
-	IO m_sendIO;		// IO structure used when complete to send data
-	bool m_isConnected;
 	std::thread m_thread;
 
-	/**
-		IBuffer pointer queue to send.
-		Top of IBUffer in queue is currently in progress sending operation.
-	*/
-	std::deque<CComPtr<IBuffer>> m_buffersToSend;
+	template<class T>
+	struct MainThreadDeleter {
+		void operator()(T* target) { target->onExitMainThread(); }
+	};
 };
 
 template<class T>
@@ -82,11 +92,7 @@ inline HRESULT CPipe::createInstance(std::unique_ptr<T>& ptr)
 	ptr.reset(new(std::nothrow) T());
 	HR_ASSERT(ptr, E_OUTOFMEMORY);
 
-	HRESULT hr = ptr->setup();
-	if (FAILED(hr)) {
-		ptr.reset();
-	}
-	return hr;
+	return S_OK;
 }
 
 template<class T>

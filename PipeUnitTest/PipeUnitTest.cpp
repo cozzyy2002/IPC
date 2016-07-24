@@ -29,16 +29,19 @@ public:
 
 	std::unique_ptr<CPipeServer> server;
 	std::unique_ptr<CPipeClient> client;
+	CPipe::IChannel* serverChannel;
+
+	PipeTest() : serverChannel(NULL) {}
 
 	void SetUp() {
 		ASSERT_HRESULT_SUCCEEDED(CPipe::createInstance(server));
 		ASSERT_HRESULT_SUCCEEDED(CPipe::createInstance(client));
 	}
 	void TearDown() {
-		EXPECT_HRESULT_SUCCEEDED(client->shutdown());
-		EXPECT_HRESULT_SUCCEEDED(server->shutdown());
+		EXPECT_HRESULT_SUCCEEDED(client->disconnect());
+		EXPECT_HRESULT_SUCCEEDED(server->stop());
 		EXPECT_FALSE(client->isConnected());
-		EXPECT_FALSE(server->isConnected());
+		if(serverChannel) EXPECT_FALSE(serverChannel->isConnected());
 	}
 
 	void connectAndWait();
@@ -49,8 +52,9 @@ void PipeTest::connectAndWait()
 	CSafeEventHandle  hServerEvent(FALSE), hClientEvent(FALSE);
 	HANDLE hEvents[] = { hServerEvent, hClientEvent };
 
-	server->onConnected = [&]()
+	server->onConnected = [&](CPipe::IChannel* channel)
 	{
+		serverChannel = channel;
 		SetEvent(hServerEvent);
 		return S_OK;
 	};
@@ -59,10 +63,15 @@ void PipeTest::connectAndWait()
 		SetEvent(hClientEvent);
 		return S_OK;
 	};
-	WIN32_EXPECT(WaitForMultipleObjects(2, hEvents, TRUE, 100));
 
-	ASSERT_TRUE(server->isConnected());
-	ASSERT_TRUE(client->isConnected());
+	ASSERT_HRESULT_SUCCEEDED(server->start());
+	ASSERT_HRESULT_SUCCEEDED(client->connect());
+
+	ASSERT_LT(WaitForMultipleObjects(ARRAYSIZE(hEvents), hEvents, TRUE, 100), ARRAYSIZE(hEvents));
+
+	ASSERT_TRUE(serverChannel);
+	EXPECT_TRUE(serverChannel->isConnected());
+	EXPECT_TRUE(client->isConnected());
 }
 
 TEST_F(PipeTest, normal)
@@ -74,7 +83,7 @@ TEST_F(PipeTest, normal)
 
 	data_t dataToSend{ 1, 2, 3, 0, 5 };
 	data_t receivedData;
-	server->onReceived = [&](CPipe::IBuffer* buffer)
+	server->onReceived = [&](CPipe::IChannel* channel, CPipe::IBuffer* buffer)
 	{
 		BYTE* data;
 		buffer->GetBuffer((void**)&data);
@@ -123,7 +132,7 @@ TEST_F(PipeTest, MultiData)
 	// Value: received count. 1 is expected.
 	std::map<std::string, int> datasReceived;
 
-	server->onReceived = [&](CPipe::IBuffer* buffer)
+	server->onReceived = [&](CPipe::IChannel* channel, CPipe::IBuffer* buffer)
 	{
 		BYTE* data;
 		buffer->GetBuffer((void**)&data);

@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "PipeServer.h"
+#include "Channel.h"
+
 #include <win32/ComUtils.h>
 
 #include <new>
@@ -10,26 +12,102 @@ CPipeServer::CPipeServer()
 {
 }
 
-HRESULT CPipeServer::setup()
-{
-	DWORD dwOpenMode = PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED | FILE_FLAG_FIRST_PIPE_INSTANCE;
-	DWORD dwPipeMode = PIPE_TYPE_BYTE | PIPE_READMODE_BYTE;
-	DWORD nMaxInstanes = 1;
-	DWORD nOutBufferSize = 128;
-	DWORD nInBufferSize = 128;
-	DWORD nDefaultTimOout = 1000;
-	m_pipe.reset(::CreateNamedPipe(m_pipeName, dwOpenMode, dwPipeMode, nMaxInstanes, nOutBufferSize, nInBufferSize, nDefaultTimOout, NULL));
-	WIN32_ASSERT(m_pipe.isValid());
-	HR_ASSERT(!ConnectNamedPipe(m_pipe, &m_connectIO), E_ABORT);	// ConnetNamedPipe() should return FALSE.
-	DWORD error = GetLastError();
-	HR_ASSERT(error == ERROR_IO_PENDING, HRESULT_FROM_WIN32(error));
-
-	// Server is waiting for client to connect.
-	bool isConnected = false;
-	return CPipe::setup(isConnected);
-}
-
-
 CPipeServer::~CPipeServer()
 {
 }
+
+HRESULT CPipeServer::start(int channelCount /*= 1*/)
+{
+	HR_ASSERT(0 < channelCount, E_INVALIDARG);
+
+	HR_ASSERT_OK(CPipe::setup(channelCount));
+
+	for (channels_t::iterator ch = m_channels.begin(); ch != m_channels.end(); ch++) {
+		Channel* channel = ch->get();
+
+		// Create server pipe instance
+		DWORD dwOpenMode = PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED;
+		DWORD dwPipeMode = PIPE_TYPE_BYTE | PIPE_READMODE_BYTE;
+		DWORD nMaxInstanes = m_channels.size();
+		DWORD nOutBufferSize = 128;
+		DWORD nInBufferSize = 128;
+		DWORD nDefaultTimOout = 1000;
+		channel->hPipe.reset(::CreateNamedPipe(m_pipeName, dwOpenMode, dwPipeMode, nMaxInstanes, nOutBufferSize, nInBufferSize, nDefaultTimOout, NULL));
+		WIN32_ASSERT(channel->hPipe.isValid());
+
+		// Wait for client to connect
+		HR_ASSERT(!ConnectNamedPipe(channel->hPipe, &channel->connectIO), E_ABORT);	// ConnetNamedPipe() should return FALSE.
+		DWORD error = GetLastError();
+		switch (error) {
+		case ERROR_IO_PENDING:
+			break;
+		case ERROR_PIPE_CONNECTED:
+			WIN32_ASSERT(SetEvent(channel->connectIO));
+			break;
+		default:
+			WIN32_FAIL(ConnectNamedPipe(), error);
+		}
+	};
+
+	// Server is waiting for client to connect.
+	return CPipe::start();
+}
+
+HRESULT CPipeServer::stop()
+{
+	return CPipe::stop();
+}
+
+HRESULT CPipeServer::disconnect(IChannel* iChannel)
+{
+	Channel* channel;
+	HR_ASSERT_OK(getChannel(iChannel, &channel));
+
+	channel->invalidate();
+	WIN32_ASSERT(DisconnectNamedPipe(channel->hPipe));
+
+	if (onDisconnected) {
+		HR_ASSERT_OK(onDisconnected(iChannel));
+	}
+
+	return S_OK;
+}
+
+HRESULT CPipeServer::handleConnectedEvent(Channel* channel)
+{
+	if (onConnected) {
+		HR_ASSERT_OK(onConnected(channel));
+	}
+
+	return S_OK;
+}
+
+HRESULT CPipeServer::handleErrorEvent(Channel* channel, HRESULT hr)
+{
+	if (channel->isConnected()) {
+		hr = disconnect(channel);
+	} else {
+		return hr;
+	}
+
+	return S_OK;
+}
+
+HRESULT CPipeServer::handleReceivedEvent(Channel* channel, IBuffer* buffer)
+{
+	if (onReceived) {
+		HR_ASSERT_OK(onReceived(channel, buffer));
+	}
+
+	return S_OK;
+}
+
+HRESULT CPipeServer::handleCompletedToSendEvent(Channel* channel, IBuffer* buffer)
+{
+	if (onCompletedToSend) {
+		HR_ASSERT_OK(onCompletedToSend(channel, buffer));
+	}
+
+	return S_OK;
+}
+

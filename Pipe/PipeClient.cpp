@@ -16,7 +16,7 @@ HRESULT CPipeClient::connect()
 {
 	HR_ASSERT_OK(CPipe::setup(1));
 
-	Channel* channel = m_channels[0].get();
+	Channel* channel = m_channels.begin()->get();
 	channel->hPipe.reset(CreateFile(m_pipeName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL));
 	WIN32_ASSERT(channel->hPipe.isValid());
 
@@ -33,7 +33,15 @@ HRESULT CPipeClient::disconnect()
 
 HRESULT CPipeClient::send(IBuffer* iBuffer)
 {
-	Channel* channel = m_channels[0].get();
+	HR_ASSERT(isConnected(), E_ILLEGAL_METHOD_CALL);
+	Channel* channel = m_channels.begin()->get();
 
 	return CPipe::send(channel, iBuffer);
+}
+
+bool CPipeClient::isConnected() const
+{
+	if (m_channels.empty()) return false;
+
+	return m_channels.begin()->get()->isConnected();
 }

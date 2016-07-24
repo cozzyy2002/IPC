@@ -10,6 +10,7 @@ public:
 	HRESULT disconnect();
 
 	HRESULT send(IBuffer* iBuffer);
+	bool isConnected() const;
 
 protected:
 };

@@ -40,9 +40,6 @@ public:
 	template<class T>
 	static HRESULT createInstance(T** pp);
 
-	HRESULT send(IChannel* channel, IBuffer* iBuffer);
-	inline bool isConnected(IChannel* channel) const { return channel->isConnected(); }
-
 	std::function <HRESULT(IChannel* channel)> onConnected;
 	std::function <HRESULT(IChannel* channel)> onDisconnected;
 	std::function <HRESULT(IChannel* channel, IBuffer*)> onCompletedToSend;
@@ -63,6 +60,7 @@ protected:
 	HRESULT start();
 	HRESULT stop();
 	HRESULT send(Channel* channel, IBuffer* iBuffer);
+	HRESULT send(IChannel* channel, IBuffer* iBuffer);
 
 	HRESULT mainThread();
 	HRESULT onExitMainThread();

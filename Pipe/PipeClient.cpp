@@ -28,7 +28,13 @@ HRESULT CPipeClient::connect()
 
 HRESULT CPipeClient::disconnect()
 {
-	return CPipe::stop();
+	HR_ASSERT_OK(CPipe::stop());
+
+	if (onDisconnected) {
+		onDisconnected();
+	}
+
+	return S_OK;
 }
 
 HRESULT CPipeClient::send(IBuffer* iBuffer)
@@ -45,3 +51,42 @@ bool CPipeClient::isConnected() const
 
 	return m_channels.begin()->get()->isConnected();
 }
+
+HRESULT CPipeClient::handleConnectedEvent(Channel* channel)
+{
+	if (onConnected) {
+		HR_ASSERT_OK(onConnected());
+	}
+
+	return S_OK;
+}
+
+HRESULT CPipeClient::handleErrorEvent(Channel* channel, HRESULT hr)
+{
+	if (channel->isConnected()) {
+		hr = disconnect();
+	} else {
+		return hr;
+	}
+
+	return S_OK;
+}
+
+HRESULT CPipeClient::handleReceivedEvent(Channel* channel, IBuffer* buffer)
+{
+	if (onReceived) {
+		HR_ASSERT_OK(onReceived(buffer));
+	}
+
+	return S_OK;
+}
+
+HRESULT CPipeClient::handleCompletedToSendEvent(Channel* channel, IBuffer* buffer)
+{
+	if (onCompletedToSend) {
+		HR_ASSERT_OK(onCompletedToSend(buffer));
+	}
+
+	return S_OK;
+}
+

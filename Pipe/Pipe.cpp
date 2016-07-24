@@ -89,74 +89,89 @@ HRESULT CPipe::mainThread()
 		HR_ASSERT(ch < m_channels.size(), E_UNEXPECTED);
 
 		Channel* channel = m_channels[ch].get();
-		DWORD numberOfBytesTransferred;
 
 		switch (ioType) {
 		case IO::Type::Connect:	// Connected
 			LOG4CPLUS_INFO(logger, className << ": Connected. Channel=" << ch);
-			channel->m_isConnected = true;
-			WIN32_ASSERT(ResetEvent(channel->connectIO));
-			if (onConnected) {
-				HR_ASSERT_OK(onConnected(channel));
-			}
-
-			// Prepare to receive header
-			HR_ASSERT_OK(read(channel, &channel->readHeader, sizeof(channel->readHeader)));
+			hr = onConnected(channel);
+			if(FAILED(hr)) hr = handleErrorEvent(channel, hr);
 			break;
 
 		case IO::Type::Receive:		// Received header or user data.
-			WIN32_ASSERT(GetOverlappedResult(channel->hPipe, &channel->receiveIO, &numberOfBytesTransferred, FALSE));
-			LOG4CPLUS_DEBUG(logger, "Received " << numberOfBytesTransferred << "byte");
-			if(!channel->readBuffer) {
-				// Received buffer header.
-				HR_ASSERT(sizeof(channel->readHeader) == numberOfBytesTransferred, E_UNEXPECTED);
-
-				// Prepare to receive user data.
-				HR_ASSERT_OK(IBuffer::createInstance(channel->readHeader.dataSize, &channel->readBuffer));
-				CBuffer* p = CBuffer::getImpl(channel->readBuffer);
-				HR_ASSERT_OK(read(channel, p->data, channel->readHeader.dataSize));
-			} else {
-				// Receied user data.
-				CBuffer* p = CBuffer::getImpl(channel->readBuffer);
-				HR_ASSERT(p->header->dataSize == numberOfBytesTransferred, E_UNEXPECTED);
-
-				if (onReceived) {
-					HR_ASSERT_OK(onReceived(channel, channel->readBuffer));
-				}
-
-				// Prepare to receive next header
-				channel->readBuffer.Release();
-				HR_ASSERT_OK(read(channel, &channel->readHeader, sizeof(channel->readHeader)));
-			}
+			hr = onReceived(channel);
+			if (FAILED(hr)) hr = handleErrorEvent(channel, hr);
 			break;
 
 		case IO::Type::Send:			// Complete to send data.
-			{
-				std::lock_guard<std::mutex> lock(channel->sendMutex);
-
-				HR_ASSERT(0 <= channel->buffersToSend.size(), E_UNEXPECTED);
-				if (onCompletedToSend) {
-					IBuffer* buffer = channel->buffersToSend.front();
-					HR_ASSERT_OK(onCompletedToSend(channel, buffer));
-				}
-
-				// Remove current buffer and send next buffer if exist.
-				channel->buffersToSend.pop_front();
-				if (0 < channel->buffersToSend.size()) {
-					HR_ASSERT_OK(write(channel, channel->buffersToSend.front()));
-				} else {
-					WIN32_ASSERT(ResetEvent(channel->sendIO));
-				}
-			}
+			hr = onCompletedToSend(channel);
+			if (FAILED(hr)) hr = handleErrorEvent(channel, hr);
 			break;
 		default:
 			// Always fails.
-			HR_ASSERT(!"IO type is out of range", E_UNEXPECTED);
+			HR_FAIL(IO type is out of range, E_UNEXPECTED);
 			break;
 		}
 	}
 
 	return hr;
+}
+
+HRESULT CPipe::onConnected(Channel* channel)
+{
+	channel->m_isConnected = true;
+	WIN32_ASSERT(ResetEvent(channel->connectIO));
+	HR_ASSERT_OK(handleConnectedEvent(channel));
+
+	// Prepare to receive header
+	HR_ASSERT_OK(read(channel, &channel->readHeader, sizeof(channel->readHeader)));
+
+	return S_OK;
+}
+
+HRESULT CPipe::onReceived(Channel* channel)
+{
+	DWORD numberOfBytesTransferred = 0;
+	WIN32_ASSERT(GetOverlappedResult(channel->hPipe, &channel->receiveIO, &numberOfBytesTransferred, FALSE));
+	LOG4CPLUS_DEBUG(logger, "Received " << numberOfBytesTransferred << "byte");
+	if (!channel->readBuffer) {
+		// Received buffer header.
+		HR_ASSERT(sizeof(channel->readHeader) == numberOfBytesTransferred, E_UNEXPECTED);
+
+		// Prepare to receive user data.
+		HR_ASSERT_OK(IBuffer::createInstance(channel->readHeader.dataSize, &channel->readBuffer));
+		CBuffer* p = CBuffer::getImpl(channel->readBuffer);
+		HR_ASSERT_OK(read(channel, p->data, channel->readHeader.dataSize));
+	} else {
+		// Receied user data.
+		CBuffer* p = CBuffer::getImpl(channel->readBuffer);
+		HR_ASSERT(p->header->dataSize == numberOfBytesTransferred, E_UNEXPECTED);
+
+		HR_ASSERT_OK(handleReceivedEvent(channel, channel->readBuffer));
+
+		// Prepare to receive next header
+		channel->readBuffer.Release();
+		HR_ASSERT_OK(read(channel, &channel->readHeader, sizeof(channel->readHeader)));
+	}
+
+	return S_OK;
+}
+
+HRESULT CPipe::onCompletedToSend(Channel* channel)
+{
+	std::lock_guard<std::mutex> lock(channel->sendMutex);
+
+	HR_ASSERT(0 < channel->buffersToSend.size(), E_UNEXPECTED);
+	HR_ASSERT_OK(handleCompletedToSendEvent(channel, channel->buffersToSend.front()));
+
+	// Remove current buffer and send next buffer if exist.
+	channel->buffersToSend.pop_front();
+	if (0 < channel->buffersToSend.size()) {
+		HR_ASSERT_OK(write(channel, channel->buffersToSend.front()));
+	} else {
+		WIN32_ASSERT(ResetEvent(channel->sendIO));
+	}
+
+	return S_OK;
 }
 
 HRESULT CPipe::onExitMainThread()

@@ -58,7 +58,7 @@ void PipeTest::connectAndWait()
 		SetEvent(hServerEvent);
 		return S_OK;
 	};
-	client->onConnected = [&](CPipe::IChannel* channel)
+	client->onConnected = [&]()
 	{
 		SetEvent(hClientEvent);
 		return S_OK;
@@ -95,7 +95,7 @@ TEST_F(PipeTest, normal)
 	};
 
 	CPipe::IBuffer* bufferSent = NULL;
-	client->onCompletedToSend = [&](CPipe::IChannel* channel, CPipe::IBuffer* buffer)
+	client->onCompletedToSend = [&](CPipe::IBuffer* buffer)
 	{
 		bufferSent = buffer;
 		SetEvent(hClientEvent);

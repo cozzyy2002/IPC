@@ -66,5 +66,48 @@ HRESULT CPipeServer::disconnect(IChannel* iChannel)
 	channel->invalidate();
 	WIN32_ASSERT(DisconnectNamedPipe(channel->hPipe));
 
+	if (onDisconnected) {
+		HR_ASSERT_OK(onDisconnected(iChannel));
+	}
+
 	return S_OK;
 }
+
+HRESULT CPipeServer::handleConnectedEvent(Channel* channel)
+{
+	if (onConnected) {
+		HR_ASSERT_OK(onConnected(channel));
+	}
+
+	return S_OK;
+}
+
+HRESULT CPipeServer::handleErrorEvent(Channel* channel, HRESULT hr)
+{
+	if (channel->isConnected()) {
+		hr = disconnect(channel);
+	} else {
+		return hr;
+	}
+
+	return S_OK;
+}
+
+HRESULT CPipeServer::handleReceivedEvent(Channel* channel, IBuffer* buffer)
+{
+	if (onReceived) {
+		HR_ASSERT_OK(onReceived(channel, buffer));
+	}
+
+	return S_OK;
+}
+
+HRESULT CPipeServer::handleCompletedToSendEvent(Channel* channel, IBuffer* buffer)
+{
+	if (onCompletedToSend) {
+		HR_ASSERT_OK(onCompletedToSend(channel, buffer));
+	}
+
+	return S_OK;
+}
+

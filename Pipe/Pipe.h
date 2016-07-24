@@ -40,11 +40,6 @@ public:
 	template<class T>
 	static HRESULT createInstance(T** pp);
 
-	std::function <HRESULT(IChannel* channel)> onConnected;
-	std::function <HRESULT(IChannel* channel)> onDisconnected;
-	std::function <HRESULT(IChannel* channel, IBuffer*)> onCompletedToSend;
-	std::function <HRESULT(IChannel* channel, IBuffer*)> onReceived;
-
 protected:
 	// Header of data to send or to be received.
 	struct DataHeader {
@@ -61,6 +56,17 @@ protected:
 	HRESULT stop();
 	HRESULT send(Channel* channel, IBuffer* iBuffer);
 	HRESULT send(IChannel* channel, IBuffer* iBuffer);
+
+#pragma region Event handlers implemented by sub classes
+	virtual HRESULT handleConnectedEvent(Channel* channel) { return S_OK; }
+	virtual HRESULT handleErrorEvent(Channel* channel, HRESULT hr) { return S_OK; }
+	virtual HRESULT handleReceivedEvent(Channel* channel, IBuffer* buffer) { return S_OK; }
+	virtual HRESULT handleCompletedToSendEvent(Channel* channel, IBuffer* buffer) { return S_OK; }
+#pragma endregion
+
+	HRESULT onConnected(Channel* channel);
+	HRESULT onReceived(Channel* channel);
+	HRESULT onCompletedToSend(Channel* channel);
 
 	HRESULT mainThread();
 	HRESULT onExitMainThread();

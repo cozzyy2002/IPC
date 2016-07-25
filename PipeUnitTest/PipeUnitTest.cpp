@@ -3,8 +3,9 @@
 
 #include "stdafx.h"
 #include <log4cplus/configurator.h>
-#include <string>
 #include <map>
+
+typedef std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>> tstring;
 
 static log4cplus::Logger logger = log4cplus::Logger::getInstance(LOG4CPLUS_TEXT("Test.PipeUnitTest"));
 
@@ -76,14 +77,14 @@ void PipeTest::connectAndWait(int serverChannelCount /*= 1*/)
 }
 
 // Convert Received data in IBuffer object to string.
-HRESULT PipeTest::bufferToString(CPipe::IBuffer * buffer, std::string & str)
+HRESULT PipeTest::bufferToString(CPipe::IBuffer * buffer, tstring & str)
 {
-	char* data;
+	TCHAR* data;
 	HR_ASSERT_OK(buffer->GetBuffer((void**)&data));
 	DWORD size;
 	HR_ASSERT_OK(buffer->GetSie(&size));
 
-	str.assign(data, size - 1);	// Exclude last '\0'
+	str.assign(data, size / sizeof(TCHAR));
 
 	return S_OK;
 }
@@ -132,25 +133,25 @@ TEST_F(PipeTest, MultiData)
 	CSafeEventHandle  hServerEvent(FALSE), hClientEvent(FALSE);
 	HANDLE hEvents[] = { hServerEvent, hClientEvent };
 
-	std::vector<std::string> datasToSend{
-		"wstring: A type that describes a secialization of the temlate class basic_staring with elements of type wchar_t.",
-		"Writing a Mutithireaded Win32 Program",
-		"Sharing Common Resources Between Threads.",
-		"mutable std::mutex m;",
-		"std::lock_guard<std::mutex> g(m); // lock mutex",
-		"項目16: const メンバ関数はスレッドセーフにする",
+	std::vector<tstring> datasToSend{
+		_T("wstring: A type that describes a secialization of the temlate class basic_staring with elements of type wchar_t."),
+		_T("Writing a Mutithireaded Win32 Program"),
+		_T("Sharing Common Resources Between Threads."),
+		_T("mutable std::mutex m;"),
+		_T("std::lock_guard<std::mutex> g(m); // lock mutex"),
+		_T("項目16: const メンバ関数はスレッドセーフにする"),
 	};
 
 	// Map of received data
 	// Key: received data
 	// Value: received count. 1 is expected.
-	std::map<std::string, int> datasReceived;
+	std::map<tstring, int> datasReceived;
 
 	server->onReceived = [&](CPipe::IChannel* channel, CPipe::IBuffer* buffer)
 	{
-		std::string str;
+		tstring str;
 		HR_ASSERT_OK(bufferToString(buffer, str));
-		std::map<std::string, int>::iterator i = datasReceived.find(str);
+		std::map<tstring, int>::iterator i = datasReceived.find(str);
 		LOG4CPLUS_INFO(logger, "Received: '" << str.c_str() << "'");
 		if (i == datasReceived.end()) {
 			datasReceived[str] = 1;
@@ -160,11 +161,11 @@ TEST_F(PipeTest, MultiData)
 		return S_OK;
 	};
 
-	std::for_each(datasToSend.begin(), datasToSend.end(), [&](const std::string& str)
+	std::for_each(datasToSend.begin(), datasToSend.end(), [&](const tstring& str)
 	{
 		// Send string including terminating zero.
 		CComPtr<CPipe::IBuffer> buffer;
-		ASSERT_HRESULT_SUCCEEDED(CPipe::IBuffer::createInstance(str.size() + 1, str.c_str(), &buffer));
+		ASSERT_HRESULT_SUCCEEDED(CPipe::IBuffer::createInstance(str.size() * sizeof(TCHAR), str.c_str(), &buffer));
 		ASSERT_HRESULT_SUCCEEDED(client->send(buffer));
 	});
 
@@ -173,9 +174,9 @@ TEST_F(PipeTest, MultiData)
 	ASSERT_EQ(datasToSend.size(), datasReceived.size());
 
 	// All datas should be received once.
-	std::for_each(datasToSend.begin(), datasToSend.end(), [&](const std::string& str)
+	std::for_each(datasToSend.begin(), datasToSend.end(), [&](const tstring& str)
 	{
-		std::map<std::string, int>::iterator i = datasReceived.find(str);
+		std::map<tstring, int>::iterator i = datasReceived.find(str);
 		ASSERT_NE(i, datasReceived.end());
 		EXPECT_EQ(i->second, 1);
 	});

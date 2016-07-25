@@ -66,11 +66,15 @@ HRESULT CPipeServer::disconnect(IChannel* iChannel)
 	channel->invalidate();
 	WIN32_ASSERT(DisconnectNamedPipe(channel->hPipe));
 
-	if (onDisconnected) {
-		HR_ASSERT_OK(onDisconnected(iChannel));
+	HRESULT hr = S_OK;
+	if (channel->onDisconnected) {
+		hr = HR_EXPECT_OK(channel->onDisconnected());
+	}
+	if ((hr == S_OK) && onDisconnected) {
+		hr = HR_EXPECT_OK(onDisconnected(iChannel));
 	}
 
-	return S_OK;
+	return hr;
 }
 
 HRESULT CPipeServer::handleConnectedEvent(Channel* channel)
@@ -95,19 +99,27 @@ HRESULT CPipeServer::handleErrorEvent(Channel* channel, HRESULT hr)
 
 HRESULT CPipeServer::handleReceivedEvent(Channel* channel, IBuffer* buffer)
 {
-	if (onReceived) {
-		HR_ASSERT_OK(onReceived(channel, buffer));
+	HRESULT hr = S_OK;
+	if (channel->onReceived) {
+		hr = HR_EXPECT_OK(channel->onReceived(buffer));
+	}
+	if ((hr == S_OK) && onReceived) {
+		hr = HR_EXPECT_OK(onReceived(channel, buffer));
 	}
 
-	return S_OK;
+	return hr;
 }
 
 HRESULT CPipeServer::handleCompletedToSendEvent(Channel* channel, IBuffer* buffer)
 {
-	if (onCompletedToSend) {
-		HR_ASSERT_OK(onCompletedToSend(channel, buffer));
+	HRESULT hr = S_OK;
+	if (channel->onCompletedToSend) {
+		hr = HR_EXPECT_OK(channel->onCompletedToSend(buffer));
+	}
+	if ((hr == S_OK) && onCompletedToSend) {
+		hr = HR_EXPECT_OK(onCompletedToSend(channel, buffer));
 	}
 
-	return S_OK;
+	return hr;
 }
 

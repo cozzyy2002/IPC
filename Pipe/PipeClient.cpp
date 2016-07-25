@@ -31,7 +31,7 @@ HRESULT CPipeClient::disconnect()
 	HR_ASSERT_OK(CPipe::stop());
 
 	if (onDisconnected) {
-		onDisconnected();
+		HR_ASSERT_OK(onDisconnected());
 	}
 
 	return S_OK;

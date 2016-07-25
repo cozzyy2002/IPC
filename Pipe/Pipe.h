@@ -25,8 +25,6 @@ public:
 	struct IChannel {
 		virtual ~IChannel() {}
 
-		// Shortcut to CPipe methods
-		virtual HRESULT send(IBuffer* iBuffer) PURE;
 		virtual bool isConnected() const PURE;
 
 		// Per channel callbacks
@@ -34,11 +32,6 @@ public:
 		std::function <HRESULT(IBuffer*)> onCompletedToSend;
 		std::function <HRESULT(IBuffer*)> onReceived;
 	};
-
-	template<class T>
-	static HRESULT createInstance(std::unique_ptr<T>& ptr);
-	template<class T>
-	static HRESULT createInstance(T** pp);
 
 protected:
 	// Header of data to send or to be received.
@@ -85,23 +78,3 @@ protected:
 		void operator()(T* target) { target->onExitMainThread(); }
 	};
 };
-
-template<class T>
-inline HRESULT CPipe::createInstance(std::unique_ptr<T>& ptr)
-{
-	ptr.reset(new(std::nothrow) T());
-	HR_ASSERT(ptr, E_OUTOFMEMORY);
-
-	return S_OK;
-}
-
-template<class T>
-inline HRESULT CPipe::createInstance(T ** pp)
-{
-	HR_ASSERT(pp, E_POINTER);
-
-	std::unique_ptr<T> ptr;
-	HRESULT hr = createInstance(ptr);
-	*pp = ptr.release();
-	return hr;
-}

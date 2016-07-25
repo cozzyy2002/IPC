@@ -34,8 +34,8 @@ public:
 	PipeTest() : serverChannel(NULL) {}
 
 	void SetUp() {
-		ASSERT_HRESULT_SUCCEEDED(CPipe::createInstance(server));
-		ASSERT_HRESULT_SUCCEEDED(CPipe::createInstance(client));
+		server.reset(new CPipeServer());
+		client.reset(new CPipeClient());
 	}
 	void TearDown() {
 		EXPECT_HRESULT_SUCCEEDED(client->disconnect());
@@ -44,10 +44,11 @@ public:
 		if(serverChannel) EXPECT_FALSE(serverChannel->isConnected());
 	}
 
-	void connectAndWait();
+	void connectAndWait(int serverChannelCount = 1);
+	HRESULT bufferToString(CPipe::IBuffer* buffer, std::string& str);
 };
 
-void PipeTest::connectAndWait()
+void PipeTest::connectAndWait(int serverChannelCount /*= 1*/)
 {
 	CSafeEventHandle  hServerEvent(FALSE), hClientEvent(FALSE);
 	HANDLE hEvents[] = { hServerEvent, hClientEvent };
@@ -64,7 +65,7 @@ void PipeTest::connectAndWait()
 		return S_OK;
 	};
 
-	ASSERT_HRESULT_SUCCEEDED(server->start());
+	ASSERT_HRESULT_SUCCEEDED(server->start(serverChannelCount));
 	ASSERT_HRESULT_SUCCEEDED(client->connect());
 
 	ASSERT_LT(WaitForMultipleObjects(ARRAYSIZE(hEvents), hEvents, TRUE, 100), ARRAYSIZE(hEvents));
@@ -72,6 +73,19 @@ void PipeTest::connectAndWait()
 	ASSERT_TRUE(serverChannel);
 	EXPECT_TRUE(serverChannel->isConnected());
 	EXPECT_TRUE(client->isConnected());
+}
+
+// Convert Received data in IBuffer object to string.
+HRESULT PipeTest::bufferToString(CPipe::IBuffer * buffer, std::string & str)
+{
+	char* data;
+	HR_ASSERT_OK(buffer->GetBuffer((void**)&data));
+	DWORD size;
+	HR_ASSERT_OK(buffer->GetSie(&size));
+
+	str.assign(data, size - 1);	// Exclude last '\0'
+
+	return S_OK;
 }
 
 TEST_F(PipeTest, normal)
@@ -134,13 +148,8 @@ TEST_F(PipeTest, MultiData)
 
 	server->onReceived = [&](CPipe::IChannel* channel, CPipe::IBuffer* buffer)
 	{
-		BYTE* data;
-		buffer->GetBuffer((void**)&data);
-		DWORD size;
-		buffer->GetSie(&size);
-
-		// Received data -> string
-		std::string str((char*)data);
+		std::string str;
+		HR_ASSERT_OK(bufferToString(buffer, str));
 		std::map<std::string, int>::iterator i = datasReceived.find(str);
 		LOG4CPLUS_INFO(logger, "Received: '" << str.c_str() << "'");
 		if (i == datasReceived.end()) {

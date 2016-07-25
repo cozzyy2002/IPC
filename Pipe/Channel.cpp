@@ -8,8 +8,8 @@ IO::IO(Type type, Channel* channel)
 	ov.hEvent = hEvent;
 }
 
-Channel::Channel(CPipe* pipe, int index)
-	: pipe(pipe), index(index), m_isConnected(false)
+Channel::Channel(int index)
+	: index(index), m_isConnected(false)
 	, connectIO(IO::Type::Connect, this)
 	, receiveIO(IO::Type::Receive, this)
 	, sendIO(IO::Type::Send, this)

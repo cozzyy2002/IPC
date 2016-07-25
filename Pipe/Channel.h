@@ -43,7 +43,6 @@ struct Channel : public CPipe::IChannel {
 	IO sendIO;			// IO structure used when complete to send data
 
 	bool m_isConnected;
-	virtual HRESULT send(CPipe::IBuffer* buffer) { return pipe->send(this, buffer); }
 	virtual bool isConnected() const { return m_isConnected; }
 
 	CBuffer::Header readHeader;
@@ -57,9 +56,6 @@ struct Channel : public CPipe::IChannel {
 
 	std::mutex sendMutex;
 
-	Channel(CPipe* pipe, int index);
+	Channel(int index);
 	void invalidate();
-
-protected:
-	CPipe* pipe;
 };

@@ -25,7 +25,7 @@ HRESULT CPipe::setup(int channelCount)
 {
 	m_channels.resize(channelCount);
 	for (int i = 0; i < channelCount; i++) {
-		m_channels[i] = std::move(channels_t::value_type(new Channel(this, i)));
+		m_channels[i] = std::move(channels_t::value_type(new Channel(i)));
 	}
 
 	return S_OK;

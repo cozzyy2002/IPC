@@ -44,7 +44,7 @@ CBuffer::CBuffer(DWORD size, HRESULT& hr)
 	}
 }
 
-HRESULT CBuffer::GetSie(DWORD* pSize)
+HRESULT CBuffer::GetSize(DWORD* pSize)
 {
 	HR_ASSERT(pSize, E_POINTER);
 	*pSize = header->dataSize;

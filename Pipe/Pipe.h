@@ -14,7 +14,7 @@ class CPipe
 public:
 	class IBuffer : public IUnknown {
 	public:
-		virtual HRESULT GetSie(DWORD* pSize) PURE;
+		virtual HRESULT GetSize(DWORD* pSize) PURE;
 		virtual HRESULT GetBuffer(void** pBuffer) PURE;
 
 		static HRESULT createInstance(DWORD size, IBuffer** ppInstance);

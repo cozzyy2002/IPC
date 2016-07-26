@@ -8,7 +8,6 @@ public:
 
 	HRESULT connect();
 	HRESULT disconnect();
-
 	HRESULT send(IBuffer* iBuffer);
 	bool isConnected() const;
 

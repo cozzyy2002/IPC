@@ -82,7 +82,7 @@ HRESULT PipeTest::bufferToString(CPipe::IBuffer * buffer, tstring & str)
 	TCHAR* data;
 	HR_ASSERT_OK(buffer->GetBuffer((void**)&data));
 	DWORD size;
-	HR_ASSERT_OK(buffer->GetSie(&size));
+	HR_ASSERT_OK(buffer->GetSize(&size));
 
 	str.assign(data, size / sizeof(TCHAR));
 
@@ -103,7 +103,7 @@ TEST_F(PipeTest, normal)
 		BYTE* data;
 		buffer->GetBuffer((void**)&data);
 		DWORD size;
-		buffer->GetSie(&size);
+		buffer->GetSize(&size);
 		receivedData = std::vector<BYTE>(data, data + size);
 		SetEvent(hServerEvent);
 		return S_OK;

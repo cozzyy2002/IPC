@@ -18,7 +18,7 @@ public:
 
 	CBuffer(DWORD size, HRESULT& hr);
 
-	virtual HRESULT GetSie(DWORD* pSize);
+	virtual HRESULT GetSize(DWORD* pSize);
 	virtual HRESULT GetBuffer(void** ppBuffer);
 
 	IUNKNOWN_METHODS;

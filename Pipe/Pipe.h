@@ -25,6 +25,7 @@ public:
 	struct IChannel {
 		virtual ~IChannel() {}
 
+		virtual int getId() const PURE;
 		virtual bool isConnected() const PURE;
 
 		// Per channel callbacks

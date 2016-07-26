@@ -43,6 +43,7 @@ struct Channel : public CPipe::IChannel {
 	IO sendIO;			// IO structure used when complete to send data
 
 	bool m_isConnected;
+	virtual int getId() const { return index; }
 	virtual bool isConnected() const { return m_isConnected; }
 
 	CBuffer::Header readHeader;

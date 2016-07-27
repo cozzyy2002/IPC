@@ -28,14 +28,9 @@ public:
 		virtual int getId() const PURE;
 		virtual bool isConnected() const PURE;
 
-		// Per channel callbacks
-		// If the callback return S_OK, server's callback is invoked.
-		// The callback may return S_FALSE to avoid server's callback to be invoked.
-		// Client doen't call per channel callbacks.
-		std::function <HRESULT()> onDisconnected;
-		std::function <HRESULT(IBuffer*)> onCompletedToSend;
-		std::function <HRESULT(IBuffer*)> onReceived;
 	};
+
+	bool isConnected(int ch) const;
 
 protected:
 	// Header of data to send or to be received.
@@ -51,8 +46,7 @@ protected:
 	HRESULT setup(int channelCount);
 	HRESULT start();
 	HRESULT stop();
-	HRESULT send(Channel* channel, IBuffer* iBuffer);
-	HRESULT send(IChannel* channel, IBuffer* iBuffer);
+	HRESULT send(int ch, IBuffer* iBuffer);
 
 #pragma region Event handlers implemented by sub classes
 	virtual HRESULT handleConnectedEvent(Channel* channel) { return S_OK; }
@@ -70,7 +64,7 @@ protected:
 	HRESULT read(Channel* channel, void* buffer, DWORD size);
 	HRESULT write(Channel* channel, IBuffer* iBuffer);
 
-	HRESULT getChannel(IChannel* iChannel, Channel** pChannel) const;
+	HRESULT getChannel(int ch, Channel** pChannel) const;
 
 	static const LPCTSTR m_pipeName;
 	channels_t m_channels;

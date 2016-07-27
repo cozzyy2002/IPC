@@ -183,16 +183,11 @@ HRESULT CPipe::onExitMainThread()
 	return S_OK;
 }
 
-HRESULT CPipe::send(IChannel* iChannel, IBuffer* iBuffer)
+HRESULT CPipe::send(int ch, IBuffer* iBuffer)
 {
 	Channel* channel;
-	HR_ASSERT_OK(getChannel(iChannel, &channel));
+	HR_ASSERT_OK(getChannel(ch, &channel));
 
-	return send(channel, iBuffer);
-}
-
-HRESULT CPipe::send(Channel* channel, IBuffer* iBuffer)
-{
 	std::lock_guard<std::mutex> lock(channel->sendMutex);
 
 	HR_ASSERT(channel->m_isConnected, E_ILLEGAL_METHOD_CALL);
@@ -234,17 +229,22 @@ HRESULT checkPending(BOOL ret)
 }
 
 /**
-Returns Channel object converted from IChannel.
+Returns Channel object converted from channel index..
 
-Ensure that the channel object is included in m_channels array.
+Ensures that the channel index is in range of m_channels array size.
 */
-HRESULT CPipe::getChannel(IChannel* iChannel, Channel** pChannel) const
+HRESULT CPipe::getChannel(int ch, Channel** pChannel) const
 {
-	Channel* channel = (Channel*)iChannel;
-	HR_ASSERT(0 <= channel->index, E_INVALIDARG);
-	HR_ASSERT(channel->index < (int)m_channels.size(), E_INVALIDARG);
-	HR_ASSERT(channel == m_channels[channel->index].get(), E_INVALIDARG);
+	HR_ASSERT(0 <= ch, E_INVALIDARG);
+	HR_ASSERT(ch < (int)m_channels.size(), E_INVALIDARG);
+	HR_ASSERT(pChannel, E_POINTER);
 
-	*pChannel = channel;
+	*pChannel = m_channels[ch].get();
 	return S_OK;
+}
+
+bool CPipe::isConnected(int ch) const
+{
+	if ((ch < 0) || ((int)m_channels.size() <= ch)) return false;
+	return m_channels[ch].get()->isConnected();
 }

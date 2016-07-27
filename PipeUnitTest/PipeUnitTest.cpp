@@ -30,9 +30,9 @@ public:
 
 	std::unique_ptr<CPipeServer> server;
 	std::unique_ptr<CPipeClient> client;
-	CPipe::IChannel* serverChannel;
+	int serverChannel;
 
-	PipeTest() : serverChannel(NULL) {}
+	PipeTest() : serverChannel(-1) {}
 
 	void SetUp() {
 		server.reset(new CPipeServer());
@@ -42,7 +42,7 @@ public:
 		EXPECT_HRESULT_SUCCEEDED(client->disconnect());
 		EXPECT_HRESULT_SUCCEEDED(server->stop());
 		EXPECT_FALSE(client->isConnected());
-		if(serverChannel) EXPECT_FALSE(serverChannel->isConnected());
+		EXPECT_FALSE(server->isConnected(serverChannel));
 	}
 
 	void connectAndWait(int serverChannelCount = 1);
@@ -54,9 +54,9 @@ void PipeTest::connectAndWait(int serverChannelCount /*= 1*/)
 	CSafeEventHandle  hServerEvent(FALSE), hClientEvent(FALSE);
 	HANDLE hEvents[] = { hServerEvent, hClientEvent };
 
-	server->onConnected = [&](CPipe::IChannel* channel)
+	server->onConnected = [&](int ch)
 	{
-		serverChannel = channel;
+		serverChannel = ch;
 		SetEvent(hServerEvent);
 		return S_OK;
 	};
@@ -71,8 +71,7 @@ void PipeTest::connectAndWait(int serverChannelCount /*= 1*/)
 
 	ASSERT_LT(WaitForMultipleObjects(ARRAYSIZE(hEvents), hEvents, TRUE, 100), ARRAYSIZE(hEvents));
 
-	ASSERT_TRUE(serverChannel);
-	EXPECT_TRUE(serverChannel->isConnected());
+	EXPECT_TRUE(server->isConnected(serverChannel));
 	EXPECT_TRUE(client->isConnected());
 }
 
@@ -98,7 +97,7 @@ TEST_F(PipeTest, normal)
 
 	data_t dataToSend{ 1, 2, 3, 0, 5 };
 	data_t receivedData;
-	server->onReceived = [&](CPipe::IChannel* channel, CPipe::IBuffer* buffer)
+	server->onReceived = [&](int ch, CPipe::IBuffer* buffer)
 	{
 		BYTE* data;
 		buffer->GetBuffer((void**)&data);
@@ -147,7 +146,7 @@ TEST_F(PipeTest, MultiData)
 	// Value: received count. 1 is expected.
 	std::map<tstring, int> datasReceived;
 
-	server->onReceived = [&](CPipe::IChannel* channel, CPipe::IBuffer* buffer)
+	server->onReceived = [&](int ch, CPipe::IBuffer* buffer)
 	{
 		tstring str;
 		HR_ASSERT_OK(bufferToString(buffer, str));

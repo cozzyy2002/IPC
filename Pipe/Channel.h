@@ -32,7 +32,7 @@ protected:
 /*
 	IChannel implementation.
 */
-struct Channel : public CPipe::IChannel {
+struct Channel {
 	CSafeHandle hPipe;	// Pipe handle
 
 	// Index in channels array
@@ -41,6 +41,14 @@ struct Channel : public CPipe::IChannel {
 	IO connectIO;		// IO structure used when connect
 	IO receiveIO;		// IO structure used when receive data
 	IO sendIO;			// IO structure used when complete to send data
+
+	// Per channel callbacks
+	// If the callback return S_OK, server's callback is invoked.
+	// The callback may return S_FALSE to avoid server's callback to be invoked.
+	// Client doen't call per channel callbacks.
+	std::function <HRESULT()> onDisconnected;
+	std::function <HRESULT(CPipe::IBuffer*)> onCompletedToSend;
+	std::function <HRESULT(CPipe::IBuffer*)> onReceived;
 
 	bool m_isConnected;
 	virtual int getId() const { return index; }

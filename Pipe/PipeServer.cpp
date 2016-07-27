@@ -58,16 +58,11 @@ HRESULT CPipeServer::stop()
 	return CPipe::stop();
 }
 
-HRESULT CPipeServer::disconnect(IChannel* iChannel)
+HRESULT CPipeServer::disconnect(int ch)
 {
-	return disconnect(iChannel->getId());
-}
+	Channel* channel;
+	HR_ASSERT_OK(getChannel(ch, &channel));
 
-HRESULT CPipeServer::disconnect(int id)
-{
-	HR_ASSERT(id < (int)m_channels.size(), E_INVALIDARG);
-
-	Channel* channel = m_channels[id].get();
 	HR_ASSERT(channel->isConnected(), E_ILLEGAL_METHOD_CALL);
 
 	channel->invalidate();
@@ -78,29 +73,21 @@ HRESULT CPipeServer::disconnect(int id)
 		hr = HR_EXPECT_OK(channel->onDisconnected());
 	}
 	if ((hr == S_OK) && onDisconnected) {
-		hr = HR_EXPECT_OK(onDisconnected(channel));
+		hr = HR_EXPECT_OK(onDisconnected(ch));
 	}
 
 	return hr;
 }
 
-HRESULT CPipeServer::send(IChannel* channel, IBuffer* iBuffer)
+HRESULT CPipeServer::send(int ch, IBuffer* iBuffer)
 {
-	return send(channel->getId(), iBuffer);
-}
-
-HRESULT CPipeServer::send(int id, IBuffer* iBuffer)
-{
-	HR_ASSERT(id < (int)m_channels.size(), E_INVALIDARG);
-
-	Channel* channel = m_channels[id].get();
-	return CPipe::send(channel, iBuffer);
+	return CPipe::send(ch, iBuffer);
 }
 
 HRESULT CPipeServer::handleConnectedEvent(Channel* channel)
 {
 	if (onConnected) {
-		HR_ASSERT_OK(onConnected(channel));
+		HR_ASSERT_OK(onConnected(channel->index));
 	}
 
 	return S_OK;
@@ -109,7 +96,7 @@ HRESULT CPipeServer::handleConnectedEvent(Channel* channel)
 HRESULT CPipeServer::handleErrorEvent(Channel* channel, HRESULT hr)
 {
 	if (channel->isConnected()) {
-		hr = disconnect(channel);
+		hr = disconnect(channel->index);
 	} else {
 		return hr;
 	}
@@ -124,7 +111,7 @@ HRESULT CPipeServer::handleReceivedEvent(Channel* channel, IBuffer* buffer)
 		hr = HR_EXPECT_OK(channel->onReceived(buffer));
 	}
 	if ((hr == S_OK) && onReceived) {
-		hr = HR_EXPECT_OK(onReceived(channel, buffer));
+		hr = HR_EXPECT_OK(onReceived(channel->index, buffer));
 	}
 
 	return hr;
@@ -137,7 +124,7 @@ HRESULT CPipeServer::handleCompletedToSendEvent(Channel* channel, IBuffer* buffe
 		hr = HR_EXPECT_OK(channel->onCompletedToSend(buffer));
 	}
 	if ((hr == S_OK) && onCompletedToSend) {
-		hr = HR_EXPECT_OK(onCompletedToSend(channel, buffer));
+		hr = HR_EXPECT_OK(onCompletedToSend(channel->index, buffer));
 	}
 
 	return hr;

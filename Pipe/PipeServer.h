@@ -8,15 +8,13 @@ public:
 
 	HRESULT start(int channelCount = 1);
 	HRESULT stop();
-	HRESULT disconnect(IChannel* channel);
-	HRESULT disconnect(int id);
-	HRESULT send(IChannel* channel, IBuffer* iBuffer);
-	HRESULT send(int id, IBuffer* iBuffer);
+	HRESULT disconnect(int ch);
+	HRESULT send(int ch, IBuffer* iBuffer);
 
-	std::function <HRESULT(IChannel* channel)> onConnected;
-	std::function <HRESULT(IChannel* channel)> onDisconnected;
-	std::function <HRESULT(IChannel* channel, IBuffer*)> onCompletedToSend;
-	std::function <HRESULT(IChannel* channel, IBuffer*)> onReceived;
+	std::function <HRESULT(int ch)> onConnected;
+	std::function <HRESULT(int ch)> onDisconnected;
+	std::function <HRESULT(int ch, IBuffer*)> onCompletedToSend;
+	std::function <HRESULT(int ch, IBuffer*)> onReceived;
 
 protected:
 	virtual HRESULT handleConnectedEvent(Channel* channel);

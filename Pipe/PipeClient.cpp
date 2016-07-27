@@ -2,6 +2,8 @@
 #include "PipeClient.h"
 #include "Channel.h"
 
+// Client channel
+static const int CHANNEL = 0;
 
 CPipeClient::CPipeClient()
 {
@@ -42,17 +44,17 @@ HRESULT CPipeClient::send(IBuffer* iBuffer)
 	HR_ASSERT(isConnected(), E_ILLEGAL_METHOD_CALL);
 	Channel* channel = m_channels.begin()->get();
 
-	return CPipe::send(channel, iBuffer);
+	return CPipe::send(CHANNEL, iBuffer);
 }
 
 bool CPipeClient::isConnected() const
 {
 	if (m_channels.empty()) return false;
 
-	return m_channels.begin()->get()->isConnected();
+	return m_channels[CHANNEL].get()->isConnected();
 }
 
-HRESULT CPipeClient::handleConnectedEvent(Channel* channel)
+HRESULT CPipeClient::handleConnectedEvent(Channel* /*channel*/)
 {
 	if (onConnected) {
 		HR_ASSERT_OK(onConnected());
@@ -72,7 +74,7 @@ HRESULT CPipeClient::handleErrorEvent(Channel* channel, HRESULT hr)
 	return S_OK;
 }
 
-HRESULT CPipeClient::handleReceivedEvent(Channel* channel, IBuffer* buffer)
+HRESULT CPipeClient::handleReceivedEvent(Channel* /*channel*/, IBuffer* buffer)
 {
 	if (onReceived) {
 		HR_ASSERT_OK(onReceived(buffer));
@@ -81,7 +83,7 @@ HRESULT CPipeClient::handleReceivedEvent(Channel* channel, IBuffer* buffer)
 	return S_OK;
 }
 
-HRESULT CPipeClient::handleCompletedToSendEvent(Channel* channel, IBuffer* buffer)
+HRESULT CPipeClient::handleCompletedToSendEvent(Channel* /*channel*/, IBuffer* buffer)
 {
 	if (onCompletedToSend) {
 		HR_ASSERT_OK(onCompletedToSend(buffer));

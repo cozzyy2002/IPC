@@ -39,9 +39,9 @@ public:
 		client.reset(new CPipeClient());
 	}
 	void TearDown() {
-		EXPECT_HRESULT_SUCCEEDED(client->disconnect());
+		EXPECT_HRESULT_SUCCEEDED(client->stop());
 		EXPECT_HRESULT_SUCCEEDED(server->stop());
-		EXPECT_FALSE(client->isConnected());
+		EXPECT_FALSE(client->isConnected(0));
 		EXPECT_FALSE(server->isConnected(serverChannel));
 	}
 
@@ -60,19 +60,19 @@ void PipeTest::connectAndWait(int serverChannelCount /*= 1*/)
 		SetEvent(hServerEvent);
 		return S_OK;
 	};
-	client->onConnected = [&]()
+	client->onConnected = [&](int)
 	{
 		SetEvent(hClientEvent);
 		return S_OK;
 	};
 
 	ASSERT_HRESULT_SUCCEEDED(server->start(serverChannelCount));
-	ASSERT_HRESULT_SUCCEEDED(client->connect());
+	ASSERT_HRESULT_SUCCEEDED(client->connect(0));
 
 	ASSERT_LT(WaitForMultipleObjects(ARRAYSIZE(hEvents), hEvents, TRUE, 100), ARRAYSIZE(hEvents));
 
 	EXPECT_TRUE(server->isConnected(serverChannel));
-	EXPECT_TRUE(client->isConnected());
+	EXPECT_TRUE(client->isConnected(0));
 }
 
 // Convert Received data in IBuffer object to string.
@@ -109,7 +109,7 @@ TEST_F(PipeTest, normal)
 	};
 
 	CPipe::IBuffer* bufferSent = NULL;
-	client->onCompletedToSend = [&](CPipe::IBuffer* buffer)
+	client->onCompletedToSend = [&](int, CPipe::IBuffer* buffer)
 	{
 		bufferSent = buffer;
 		SetEvent(hClientEvent);
@@ -118,7 +118,7 @@ TEST_F(PipeTest, normal)
 
 	CComPtr<CPipe::IBuffer> buffer;
 	ASSERT_HRESULT_SUCCEEDED(CPipe::IBuffer::createInstance(dataToSend.size(), dataToSend.data(), &buffer));
-	ASSERT_HRESULT_SUCCEEDED(client->send(buffer));
+	ASSERT_HRESULT_SUCCEEDED(client->send(0, buffer));
 	WIN32_EXPECT(WaitForMultipleObjects(2, hEvents, TRUE, 1000));
 
 	EXPECT_EQ(dataToSend, receivedData);
@@ -165,7 +165,7 @@ TEST_F(PipeTest, MultiData)
 		// Send string including terminating zero.
 		CComPtr<CPipe::IBuffer> buffer;
 		ASSERT_HRESULT_SUCCEEDED(CPipe::IBuffer::createInstance(str.size() * sizeof(TCHAR), str.c_str(), &buffer));
-		ASSERT_HRESULT_SUCCEEDED(client->send(buffer));
+		ASSERT_HRESULT_SUCCEEDED(client->send(0, buffer));
 	});
 
 	Sleep(1000);

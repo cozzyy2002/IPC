@@ -18,8 +18,6 @@ CPipeServer::~CPipeServer()
 
 HRESULT CPipeServer::start(int channelCount /*= 1*/)
 {
-	HR_ASSERT(0 < channelCount, E_INVALIDARG);
-
 	HR_ASSERT_OK(CPipe::setup(channelCount));
 
 	for (channels_t::iterator ch = m_channels.begin(); ch != m_channels.end(); ch++) {
@@ -93,15 +91,17 @@ HRESULT CPipeServer::handleConnectedEvent(Channel* channel)
 	return S_OK;
 }
 
+/**
+	If error after connectd, disconnedt.
+	Else(failed to connect) return HRESULT.
+ */
 HRESULT CPipeServer::handleErrorEvent(Channel* channel, HRESULT hr)
 {
 	if (channel->isConnected()) {
 		hr = disconnect(channel->index);
-	} else {
-		return hr;
 	}
 
-	return S_OK;
+	return hr;
 }
 
 HRESULT CPipeServer::handleReceivedEvent(Channel* channel, IBuffer* buffer)

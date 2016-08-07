@@ -23,6 +23,8 @@ CPipe::~CPipe()
 
 HRESULT CPipe::setup(int channelCount)
 {
+	HR_ASSERT(0 < channelCount, E_INVALIDARG);
+
 	m_channels.resize(channelCount);
 	for (int i = 0; i < channelCount; i++) {
 		m_channels[i] = std::move(channels_t::value_type(new Channel(i)));
@@ -132,7 +134,7 @@ HRESULT CPipe::onReceived(Channel* channel)
 {
 	DWORD numberOfBytesTransferred = 0;
 	WIN32_ASSERT(GetOverlappedResult(channel->hPipe, &channel->receiveIO, &numberOfBytesTransferred, FALSE));
-	LOG4CPLUS_DEBUG(logger, "Received " << numberOfBytesTransferred << "byte");
+	LOG4CPLUS_DEBUG(logger, "Received " << numberOfBytesTransferred << " byte");
 	if (!channel->readBuffer) {
 		// Received buffer header.
 		HR_ASSERT(sizeof(channel->readHeader) == numberOfBytesTransferred, E_UNEXPECTED);

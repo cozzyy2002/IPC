@@ -2,9 +2,6 @@
 #include "PipeClient.h"
 #include "Channel.h"
 
-// Client channel
-static const int CHANNEL = 0;
-
 CPipeClient::CPipeClient()
 {
 }
@@ -14,50 +11,69 @@ CPipeClient::~CPipeClient()
 {
 }
 
-HRESULT CPipeClient::connect()
+HRESULT CPipeClient::start(int channelCount /*= 1*/)
 {
-	HR_ASSERT_OK(CPipe::setup(1));
+	HR_ASSERT_OK(CPipe::setup(channelCount));
+	HR_ASSERT_OK(CPipe::start());
+	return S_OK;
+}
 
-	Channel* channel = m_channels.begin()->get();
+HRESULT CPipeClient::stop()
+{
+	return CPipe::stop();
+}
+
+HRESULT CPipeClient::connect(int ch)
+{
+	HR_ASSERT_OK(CPipe::setup(ch + 1));
+
+	HR_ASSERT(ch < (int)m_channels.size(), E_INVALIDARG);
+	HR_ASSERT(!m_channels[ch]->isConnected(), E_ILLEGAL_METHOD_CALL);
+
+	Channel* channel = m_channels[ch].get();
 	channel->hPipe.reset(CreateFile(m_pipeName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL));
 	WIN32_ASSERT(channel->hPipe.isValid());
 
 	// At this point, pipe is connected to server.
 	WIN32_ASSERT(SetEvent(channel->connectIO));
 
-	return CPipe::start();
+	HR_ASSERT_OK(CPipe::start());
+	return S_OK;
 }
 
-HRESULT CPipeClient::disconnect()
+HRESULT CPipeClient::disconnect(int ch)
 {
-	HR_ASSERT_OK(CPipe::stop());
+	HR_ASSERT(ch < (int)m_channels.size(), E_INVALIDARG);
+	HR_ASSERT(m_channels[ch]->isConnected(), E_ILLEGAL_METHOD_CALL);
+
+	WIN32_ASSERT(CloseHandle(m_channels[ch]->hPipe));
 
 	if (onDisconnected) {
-		HR_ASSERT_OK(onDisconnected());
+		HR_ASSERT_OK(onDisconnected(ch));
 	}
 
 	return S_OK;
 }
 
-HRESULT CPipeClient::send(IBuffer* iBuffer)
+HRESULT CPipeClient::send(int ch, IBuffer* iBuffer)
 {
-	HR_ASSERT(isConnected(), E_ILLEGAL_METHOD_CALL);
+	HR_ASSERT(isConnected(ch), E_ILLEGAL_METHOD_CALL);
 	Channel* channel = m_channels.begin()->get();
 
-	return CPipe::send(CHANNEL, iBuffer);
+	return CPipe::send(ch, iBuffer);
 }
 
-bool CPipeClient::isConnected() const
+bool CPipeClient::isConnected(int ch) const
 {
 	if (m_channels.empty()) return false;
 
-	return m_channels[CHANNEL].get()->isConnected();
+	return m_channels[ch].get()->isConnected();
 }
 
-HRESULT CPipeClient::handleConnectedEvent(Channel* /*channel*/)
+HRESULT CPipeClient::handleConnectedEvent(Channel* channel)
 {
 	if (onConnected) {
-		HR_ASSERT_OK(onConnected());
+		HR_ASSERT_OK(onConnected(channel->index));
 	}
 
 	return S_OK;
@@ -66,7 +82,7 @@ HRESULT CPipeClient::handleConnectedEvent(Channel* /*channel*/)
 HRESULT CPipeClient::handleErrorEvent(Channel* channel, HRESULT hr)
 {
 	if (channel->isConnected()) {
-		hr = disconnect();
+		hr = disconnect(channel->index);
 	} else {
 		return hr;
 	}
@@ -74,19 +90,19 @@ HRESULT CPipeClient::handleErrorEvent(Channel* channel, HRESULT hr)
 	return S_OK;
 }
 
-HRESULT CPipeClient::handleReceivedEvent(Channel* /*channel*/, IBuffer* buffer)
+HRESULT CPipeClient::handleReceivedEvent(Channel* channel, IBuffer* buffer)
 {
 	if (onReceived) {
-		HR_ASSERT_OK(onReceived(buffer));
+		HR_ASSERT_OK(onReceived(channel->index, buffer));
 	}
 
 	return S_OK;
 }
 
-HRESULT CPipeClient::handleCompletedToSendEvent(Channel* /*channel*/, IBuffer* buffer)
+HRESULT CPipeClient::handleCompletedToSendEvent(Channel* channel, IBuffer* buffer)
 {
 	if (onCompletedToSend) {
-		HR_ASSERT_OK(onCompletedToSend(buffer));
+		HR_ASSERT_OK(onCompletedToSend(channel->index, buffer));
 	}
 
 	return S_OK;

@@ -6,15 +6,17 @@ public:
 	CPipeClient();
 	~CPipeClient();
 
-	HRESULT connect();
-	HRESULT disconnect();
-	HRESULT send(IBuffer* iBuffer);
-	bool isConnected() const;
+	HRESULT start(int channelCount = 1);
+	HRESULT stop();
+	HRESULT connect(int ch);
+	HRESULT disconnect(int ch);
+	HRESULT send(int ch, IBuffer* iBuffer);
+	bool isConnected(int ch) const;
 
-	std::function <HRESULT()> onConnected;
-	std::function <HRESULT()> onDisconnected;
-	std::function <HRESULT(IBuffer*)> onCompletedToSend;
-	std::function <HRESULT(IBuffer*)> onReceived;
+	std::function <HRESULT(int ch)> onConnected;
+	std::function <HRESULT(int ch)> onDisconnected;
+	std::function <HRESULT(int ch, IBuffer*)> onCompletedToSend;
+	std::function <HRESULT(int ch, IBuffer*)> onReceived;
 
 protected:
 	virtual HRESULT handleConnectedEvent(Channel* channel);

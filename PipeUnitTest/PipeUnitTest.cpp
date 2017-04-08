@@ -83,7 +83,7 @@ HRESULT PipeTest::bufferToString(CPipe::IBuffer * buffer, tstring & str)
 	DWORD size;
 	HR_ASSERT_OK(buffer->GetSize(&size));
 
-	str.assign(data, size / sizeof(TCHAR));
+	str.assign(data, size / sizeof(tstring::value_type));
 
 	return S_OK;
 }
@@ -129,9 +129,6 @@ TEST_F(PipeTest, MultiData)
 {
 	connectAndWait();
 
-	CSafeEventHandle  hServerEvent(FALSE), hClientEvent(FALSE);
-	HANDLE hEvents[] = { hServerEvent, hClientEvent };
-
 	std::vector<tstring> datasToSend{
 		_T("wstring: A type that describes a secialization of the temlate class basic_staring with elements of type wchar_t."),
 		_T("Writing a Mutithireaded Win32 Program"),
@@ -164,7 +161,7 @@ TEST_F(PipeTest, MultiData)
 	{
 		// Send string including terminating zero.
 		CComPtr<CPipe::IBuffer> buffer;
-		ASSERT_HRESULT_SUCCEEDED(CPipe::IBuffer::createInstance(str.size() * sizeof(TCHAR), str.c_str(), &buffer));
+		ASSERT_HRESULT_SUCCEEDED(CPipe::IBuffer::createInstance(str.size() * sizeof(tstring::value_type), str.c_str(), &buffer));
 		ASSERT_HRESULT_SUCCEEDED(client->send(0, buffer));
 	});
 

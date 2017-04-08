@@ -3,7 +3,6 @@
 
 #include "stdafx.h"
 #include <log4cplus/configurator.h>
-#include <map>
 
 typedef std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>> tstring;
 
@@ -88,7 +87,7 @@ HRESULT PipeTest::bufferToString(CPipe::IBuffer * buffer, tstring & str)
 	return S_OK;
 }
 
-TEST_F(PipeTest, normal)
+TEST_F(PipeTest, client_sends_data)
 {
 	connectAndWait();
 
@@ -119,13 +118,13 @@ TEST_F(PipeTest, normal)
 	CComPtr<CPipe::IBuffer> buffer;
 	ASSERT_HRESULT_SUCCEEDED(CPipe::IBuffer::createInstance(dataToSend.size(), dataToSend.data(), &buffer));
 	ASSERT_HRESULT_SUCCEEDED(client->send(0, buffer));
-	WIN32_EXPECT(WaitForMultipleObjects(2, hEvents, TRUE, 1000));
+	ASSERT_LT(WaitForMultipleObjects(2, hEvents, TRUE, 1000), ARRAYSIZE(hEvents));
 
 	EXPECT_EQ(dataToSend, receivedData);
 	EXPECT_EQ(buffer, bufferSent);
 }
 
-TEST_F(PipeTest, MultiData)
+TEST_F(PipeTest, server_sends_multiple_data)
 {
 	connectAndWait();
 
@@ -138,21 +137,28 @@ TEST_F(PipeTest, MultiData)
 		_T("項目16: const メンバ関数はスレッドセーフにする"),
 	};
 
-	// Map of received data
-	// Key: received data
-	// Value: received count. 1 is expected.
-	std::map<tstring, int> datasReceived;
+	// Received data
+	std::vector<tstring> datasReceived;
 
-	server->onReceived = [&](int ch, CPipe::IBuffer* buffer)
+	client->onReceived = [&](int ch, CPipe::IBuffer* buffer)
 	{
 		tstring str;
 		HR_ASSERT_OK(bufferToString(buffer, str));
-		std::map<tstring, int>::iterator i = datasReceived.find(str);
 		LOG4CPLUS_INFO(logger, "Received: '" << str.c_str() << "'");
-		if (i == datasReceived.end()) {
-			datasReceived[str] = 1;
-		} else {
-			i->second++;
+		datasReceived.push_back(str);
+		return S_OK;
+	};
+
+	// Event to signal that all data have been sent.
+	CSafeEventHandle  hSentEvent(FALSE);
+
+	server->onCompletedToSend = [&](int ch, CPipe::IBuffer* buffer)
+	{
+		tstring str;
+		HR_ASSERT_OK(bufferToString(buffer, str));
+		LOG4CPLUS_INFO(logger, "Sent    : '" << str.c_str() << "'");
+		if (str == *datasToSend.rbegin()) {
+			WIN32_ASSERT(SetEvent(hSentEvent));
 		}
 		return S_OK;
 	};
@@ -162,18 +168,16 @@ TEST_F(PipeTest, MultiData)
 		// Send string including terminating zero.
 		CComPtr<CPipe::IBuffer> buffer;
 		ASSERT_HRESULT_SUCCEEDED(CPipe::IBuffer::createInstance(str.size() * sizeof(tstring::value_type), str.c_str(), &buffer));
-		ASSERT_HRESULT_SUCCEEDED(client->send(0, buffer));
+		ASSERT_HRESULT_SUCCEEDED(server->send(0, buffer));
 	});
 
-	Sleep(1000);
+	ASSERT_EQ(WAIT_OBJECT_0, WaitForSingleObject(hSentEvent, 1000));
+	Sleep(100);
 
 	ASSERT_EQ(datasToSend.size(), datasReceived.size());
 
 	// All datas should be received once.
-	std::for_each(datasToSend.begin(), datasToSend.end(), [&](const tstring& str)
-	{
-		std::map<tstring, int>::iterator i = datasReceived.find(str);
-		ASSERT_NE(i, datasReceived.end());
-		EXPECT_EQ(i->second, 1);
-	});
+	for(size_t i = 0; i < datasToSend.size(); i++) {
+		EXPECT_EQ(datasToSend[i], datasReceived[i]);
+	}
 }
